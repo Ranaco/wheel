@@ -1,6 +1,6 @@
 # Wheel
 
-Your phone is the steering wheel and the pedals for PC racing games. Turn it to steer and tilt it to accelerate and brake. Touch buttons cover the one-off actions: horn, lights, camera and so on, and a D-pad with A, B, X and Y covers the game's menus. The PC sees an ordinary Xbox 360 controller, so it works in any game with controller support. Up to four phones can play at once, each as its own controller.
+Your phone is the steering wheel and the pedals for PC racing games. Turn it to steer and tilt it to accelerate and brake. Touch buttons cover the one-off actions: horn, lights, camera and so on, and a D-pad with A, B, X and Y covers the game's menus. A drone mode flies drone games like Liftoff instead. The PC sees an ordinary Xbox 360 controller, so it works in any game with controller support. Up to four phones can play at once, each as its own controller.
 
 ```
 phones (app) --UDP 47800, Wi-Fi--> Wheel for PC (tray app, or wheel_companion.py) --ViGEmBus--> a virtual Xbox 360 pad per phone --> game
@@ -60,6 +60,23 @@ Each button shows the Xbox button it presses on this PC (A, LB, ≡ and so on), 
 - **Folding** a flip phone taps MENU, so the game pauses. **Half-folding** it switches to a cockpit: the dashboard on the top half, the buttons on the bottom one, held like a handheld console.
 - **Leaving the app** (home, settings, folding the phone) releases everything right away. If Wi-Fi drops, the PC releases everything after 0.25 s. The car is never left floored.
 
+## Flying (drone mode)
+
+Turn on **Fly a drone** in Settings, for drone games like Liftoff. The phone becomes a drone radio's two sticks, in the usual Mode 2 layout:
+
+| You do | Game gets |
+|---|---|
+| Roll the phone in the plane of the screen | Right stick X (roll) |
+| Tip the top away from you / toward you | Right stick Y, forward / back (pitch) |
+| Slide your left thumb up and down the pad | Left stick Y (throttle), which stays where you leave it |
+| Slide it left and right | Left stick X (yaw), which springs back to centre |
+| Tap **ARM**, **MODE**, **RESET**, **CAMERA** | A, B, Y, RB |
+
+- The thumb pad moves from wherever your thumb lands, so touching it never jumps the throttle. It starts at no throttle whenever the screen comes back.
+- Tap the middle in your flying position to make it level. Pitch stays level until you do.
+- Settings has its own tuning for flying: how far to tilt for full stick (30° by default), a centre deadzone, and expo.
+- The menu controls work as when driving; the volume keys stay the volume.
+
 ## Tuning
 
 On the phone, the gear (⚙) opens Settings:
@@ -87,6 +104,7 @@ On the PC, `%APPDATA%\Wheel\mapping.json` decides which Xbox button each phone b
 | `back` | VIEW | Back (`BACK`) |
 | `menu_up`, `menu_down`, `menu_left`, `menu_right` | the menu controls' arrows | the D-pad |
 | `menu_a`, `menu_b`, `menu_x`, `menu_y` | the menu controls' A, B, X, Y | A, B, X, Y |
+| `drone_arm`, `drone_mode` | drone mode's ARM and MODE | A, B |
 
 `steer_anti_deadzone` (0 to 0.3) cancels out a game's own stick deadzone if small turns do nothing. Quit and reopen Wheel after editing the file.
 
@@ -138,6 +156,8 @@ Also clear **Toggle handbrake**, which is LB by default and clashes with BOOST. 
 
 Clear `ACTION_CELEBRATE` and `ACTION_CLAIM`, which use LB and RB by default. In `[X360]`, the defaults suit a thumbstick, so a phone wheel wants a linear, direct setup: `STEER_GAMMA=1.0`, `STEER_DEADZONE=0.0`, `STEER_FILTER=0.1`, `STEER_SPEED=0.9`, `SPEED_SENSITIVITY=0.3`. The game rumbles mostly through the light motor at a few percent, and the app lifts that so it can be felt. Close the Assetto Corsa launcher before editing the file, because its Controls page can write its own copy back. The game only reads Player 1: use **Make Player 1** for whoever's driving.
 
+**Liftoff** (drone mode). In Options → Controls, pick the Xbox controller, then run its calibration. Slide the thumb pad from bottom to top, yaw it left and right, and tilt the phone through its pitch and roll. Assign throttle to the left stick's Y, yaw to its X, pitch to the right stick's Y and roll to its X. Then bind arm to A, the flight mode to B, reset to Y and the camera to RB. With other controllers plugged in, check Liftoff is using Wheel's.
+
 ## Protocol
 
 All messages are UDP, little-endian, and start with `"RW"`, then version 1, then a message type.
@@ -145,7 +165,7 @@ All messages are UDP, little-endian, and start with `"RW"`, then version 1, then
 | Type | Direction | Body |
 |---|---|---|
 | `0x01` discover | phone → PC | 8-byte phone id, then the phone's name in UTF-8 (up to 64 bytes). From a phone that scanned this PC's code, sent to that PC only: the name padded to 64 bytes with zeros, then a 16-byte proof, HMAC-SHA256(key = the code's token, message = the phone id), cut to 16 bytes. Broadcast to 255.255.255.255 and the subnet while looking for a PC, and repeated to the PC every 5 s while connected, so a restarted PC learns each phone's name. |
-| `0x02` state | phone → PC | `u32 seq, i16 steer (left stick X), u16 gas, u16 brake, u32 buttons, 8 bytes phone id, i16 left Y, i16 right X, i16 right Y`, sent at 125 Hz |
+| `0x02` state | phone → PC | `u32 seq, i16 steer (left stick X), u16 gas, u16 brake, u32 buttons, 8 bytes phone id, i16 left Y, i16 right X, i16 right Y` (the last three move only in drone mode), sent at 125 Hz |
 | `0x03` bye | phone → PC | none |
 | `0x81` hello | PC → phone | the PC's name, in UTF-8 |
 | `0x82` status | PC → phone | `u8 large motor, u8 small motor, u8 player`: 1 to 4, 0 until Windows numbers it, or for a phone without a controller, 255 (the PC is full), 254 (waiting to be allowed) or 253 (blocked). Sent when it changes, and every 0.25 s; to a phone without a controller, once a second. |
@@ -158,4 +178,6 @@ The code to scan holds `http://<PC address>:47802/pair?t=<token>`, because phone
 ## Known quirks
 
 - The ViGEm rumble callback sometimes arrives late or out of order. If a game sets rumble once and holds it, the phone may buzz for less time than it should. Games that update rumble continuously aren't affected.
+- When a phone goes quiet, the PC centres every stick. For a drone that's half throttle, not none, since a gamepad's throttle stick rests in the middle.
+- If ViGEmBus won't take a new controller, Wheel connects to it again, which also clears any controller a failed attempt left behind (and briefly re-plugs the others).
 - A phone's state isn't signed: on the same Wi-Fi, someone who copies an allowed phone's id from its packets can pass for it. Asking first keeps out phones that just happen to have Wheel, not someone set on getting in.

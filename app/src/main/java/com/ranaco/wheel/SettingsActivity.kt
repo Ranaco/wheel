@@ -143,6 +143,32 @@ class SettingsActivity : Activity() {
         live.addView(neutral)
         showNeutral()
 
+        val mode = section("Controller")
+        toggle(mode, "Fly a drone", "For drone games like Liftoff: tilt to pitch and roll, and a thumb pad for throttle and yaw.",
+            settings.droneMode, last = true) {
+            settings.droneMode = it
+            // The rest of the page is about one or the other.
+            content.post { build() }
+        }
+
+        if (settings.droneMode) {
+            val drone = section("Drone")
+            slider(drone, "Sensitivity", "How far you tilt the phone, each way, for full stick. Lower is more sensitive.",
+                10, 60, 1, settings.droneTilt, { "full stick at $it°" }) { settings.droneTilt = it }
+            slider(drone, "Centre deadzone", "Small wobbles near level are ignored.",
+                0, 10, 1, settings.droneDeadzone, { "$it°" }) { settings.droneDeadzone = it }
+            slider(drone, "Expo", "1.0 is linear. Higher makes small tilts gentler, for fine control.",
+                10, 30, 1, settings.droneExpo * 10, { "%.1f".format(it / 10f) }) { settings.droneExpo = it / 10f }
+            slider(drone, "Smoothing", "Steadier, at the cost of a little lag.",
+                0, 80, 5, settings.smoothing * 100, { "$it%" }, last = true) { settings.smoothing = it / 100f }
+        } else {
+            driving()
+        }
+        feelAndButtons()
+        connection()
+    }
+
+    private fun driving() {
         val steering = section("Steering")
         slider(steering, "Sensitivity", "How far you turn the phone, each way, for full lock. Lower is more sensitive.",
             20, 120, 5, settings.steerLock, { "full lock at $it°" }) { settings.steerLock = it }
@@ -161,31 +187,40 @@ class SettingsActivity : Activity() {
         slider(pedals, "Deadzone", "Tilt this far from neutral before either pedal starts. Raise it if gas comes on while you steer.",
             0, 15, 1, settings.pedalDeadzone, { "$it°" }) { settings.pedalDeadzone = it }
         toggle(pedals, "Swap gas and brake", "Tilt the top toward you for gas instead.", settings.swapPedals, last = true) { settings.swapPedals = it }
+    }
 
+    private fun feelAndButtons() {
+        val drone = settings.droneMode
         val feel = section("Feel")
         toggle(feel, "Game rumble", "The phone vibrates when the game rumbles the controller.", settings.rumble, rumble::demo) { settings.rumble = it }
         slider(feel, "Rumble strength", "Faint rumble, like road texture, is lifted so it can still be felt.",
-            0, 100, 5, settings.rumbleStrength * 100, { "$it%" }) {
+            0, 100, 5, settings.rumbleStrength * 100, { "$it%" }, last = drone) {
             settings.rumbleStrength = it / 100f
             rumble.strength = it / 100f
         }
-        toggle(feel, "Steering clicks", "A tick as the wheel passes centre, and a bump at full lock.", settings.steerFeel, {
-            haptics.tryCentre()
-            preview.postDelayed({ haptics.tryLock() }, 400)
-        }) { settings.steerFeel = it }
-        toggle(feel, "Pedal clicks", "A tick as gas or brake starts, and a click at full.", settings.pedalFeel, haptics::tryPedal, last = true) { settings.pedalFeel = it }
+        if (!drone) {
+            toggle(feel, "Steering clicks", "A tick as the wheel passes centre, and a bump at full lock.", settings.steerFeel, {
+                haptics.tryCentre()
+                preview.postDelayed({ haptics.tryLock() }, 400)
+            }) { settings.steerFeel = it }
+            toggle(feel, "Pedal clicks", "A tick as gas or brake starts, and a click at full.", settings.pedalFeel, haptics::tryPedal, last = true) { settings.pedalFeel = it }
+        }
 
         val buttons = section("Buttons")
-        toggle(buttons, "Volume keys shift gears", "Volume up shifts up, volume down shifts down.", settings.volumeShift) { settings.volumeShift = it }
+        if (!drone) {
+            toggle(buttons, "Volume keys shift gears", "Volume up shifts up, volume down shifts down.", settings.volumeShift) { settings.volumeShift = it }
+        }
         if (getSystemService(SensorManager::class.java).getDefaultSensor(Sensor.TYPE_HINGE_ANGLE) != null) {
             toggle(buttons, "Close the phone to pause", "Folding the phone taps Menu, so the game pauses before the controls let go.", settings.foldPause) { settings.foldPause = it }
-            toggle(buttons, "Half-fold for the cockpit", "Fold it like a small laptop: the dial on the top half, buttons under your thumbs on the bottom.", settings.flexMode) { settings.flexMode = it }
+            toggle(buttons, "Half-fold for the cockpit", "Fold it like a small laptop: the dashboard on the top half, buttons under your thumbs on the bottom.", settings.flexMode) { settings.flexMode = it }
         }
         toggle(buttons, "Flip the screen", "Turns the drive screen the other way round.", settings.flip, last = true) {
             settings.flip = it
             flip()
         }
+    }
 
+    private fun connection() {
         val connection = section("Connection")
         connection.addView(label(if (settings.lastPc.isEmpty()) "No PC found yet." else "Last connected to ${settings.lastPc}.", 13f, LABEL).apply {
             setPadding(0, px(14), 0, px(4))

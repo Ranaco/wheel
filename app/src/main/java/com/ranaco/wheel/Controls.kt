@@ -16,7 +16,9 @@ import java.util.concurrent.atomic.AtomicInteger
 enum class Button {
     HANDBRAKE, BOOST, SHIFT_UP, SHIFT_DOWN, HORN, LIGHTS, CAMERA, LOOK_BACK, RESET, START, BACK,
     // The menu controls' D-pad and face buttons.
-    MENU_UP, MENU_DOWN, MENU_LEFT, MENU_RIGHT, MENU_A, MENU_B, MENU_X, MENU_Y;
+    MENU_UP, MENU_DOWN, MENU_LEFT, MENU_RIGHT, MENU_A, MENU_B, MENU_X, MENU_Y,
+    // Drone mode's own: arming the motors, and the flight mode.
+    DRONE_ARM, DRONE_MODE;
 
     val bit get() = 1 shl ordinal
 }
@@ -27,11 +29,16 @@ enum class Button {
  * by the sender thread.
  */
 class Controls {
-    /** -1 (full left) to 1 (full right). */
+    /** The left stick's X, -1 (full left) to 1 (full right): steering, or a drone's yaw. */
     @Volatile var steer = 0f
     /** 0 to 1. */
     @Volatile var throttle = 0f
     @Volatile var brake = 0f
+    /** The rest of the sticks, -1 to 1, up and right positive. Only drone mode moves them:
+     *  the left stick's Y is its throttle, the right stick its pitch (Y) and roll (X). */
+    @Volatile var leftY = 0f
+    @Volatile var rightX = 0f
+    @Volatile var rightY = 0f
     /** The menu controls are up: the wheel and pedals stay centred, so menus don't drift. */
     @Volatile var menu = false
 
@@ -74,10 +81,13 @@ class Controls {
         held.set(0)
     }
 
+    /** Everything the phone's motion moves goes back to centre. The throttle is the thumb's, not the motion's. */
     fun neutral() {
         steer = 0f
         throttle = 0f
         brake = 0f
+        rightX = 0f
+        rightY = 0f
     }
 
     companion object {

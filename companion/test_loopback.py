@@ -107,13 +107,13 @@ class Phone:
         body = b"" if self.id is None else self.id + self.name.encode()
         self.sock.sendto(HEADER.pack(MAGIC, VERSION, T_DISCOVER) + body, ("127.0.0.1", PORT))
 
-    def send(self, steer=0, throttle=0, brake=0, buttons=0, seq=None):
+    def send(self, steer=0, throttle=0, brake=0, buttons=0, seq=None, ly=0, rx=0, ry=0):
         if seq is None:
             self.seq += 1
             seq = self.seq
         packet = STATE.pack(MAGIC, VERSION, T_STATE, seq, steer, throttle, brake, buttons)
         if self.id is not None:
-            packet += STATE_EXTRA.pack(self.id, 0, 0, 0)
+            packet += STATE_EXTRA.pack(self.id, ly, rx, ry)
         self.sock.sendto(packet, ("127.0.0.1", PORT))
 
     def statuses(self):
@@ -210,7 +210,7 @@ def main():
                 pass
         # Which Xbox button each phone button presses, for the marks on its screen: the default mapping.
         check("the phone is told its buttons' Xbox marks", marks is not None and marks[:4] == HEADER.pack(MAGIC, VERSION, T_BUTTONS)
-              and list(marks[4:]) == [1, 5, 2, 3, 7, 12, 6, 8, 4, 9, 10, 12, 13, 14, 15, 1, 2, 3, 4], marks and list(marks[4:]))
+              and list(marks[4:]) == [1, 5, 2, 3, 7, 12, 6, 8, 4, 9, 10, 12, 13, 14, 15, 1, 2, 3, 4, 1, 2], marks and list(marks[4:]))
 
         before = connected()
         hold([(old, dict(steer=-16384, throttle=65535))])
@@ -257,6 +257,12 @@ def main():
         pb = next((i for i, x in readings.items() if x > 15000), None)
         pc = next((i for i, x in readings.items() if x < -15000), None)
         check("each phone steers only its own controller", pb is not None and pc is not None and pb != pc, readings)
+        # Drone mode: throttle on the left stick's Y, pitch and roll on the right stick, and ARM and MODE.
+        hold([(b, dict(steer=-9000, ly=-32767, rx=12000, ry=-8000, buttons=(1 << 19) | (1 << 20))), (c, dict(steer=-16000))], 0.3)
+        g = pad(pb)
+        check("a drone's four axes reach the controller", (g.sThumbLX, g.sThumbLY, g.sThumbRX, g.sThumbRY) == (-9000, -32767, 12000, -8000),
+              (g.sThumbLX, g.sThumbLY, g.sThumbRX, g.sThumbRY))
+        check("and its ARM and MODE -> A + B", g.wButtons == (0x1000 | 0x2000), hex(g.wButtons))
         hold([(b, dict(steer=16000)), (c, dict(steer=-16000))], 0.6)
         # 0 means Windows hasn't numbered the controller yet; the latest status has it.
         slot_b = b.statuses()[-1][2]

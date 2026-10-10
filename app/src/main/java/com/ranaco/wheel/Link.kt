@@ -147,9 +147,9 @@ class Link(
                     state.putShort((controls.throttle.coerceIn(0f, 1f) * 65535).roundToInt().toShort())
                     state.putShort((controls.brake.coerceIn(0f, 1f) * 65535).roundToInt().toShort())
                     state.putInt(controls.buttons)
-                    // Then who's sending, and the sticks a wheel doesn't use: left Y, right X, right Y.
+                    // Then who's sending, and the rest of the sticks (drone mode's): left Y, right X, right Y.
                     state.put(phoneId)
-                    state.putShort(0).putShort(0).putShort(0)
+                    state.putShort(stick(controls.leftY)).putShort(stick(controls.rightX)).putShort(stick(controls.rightY))
                     packet.socketAddress = it
                     runCatching { socket.send(packet) }
                 }
@@ -249,6 +249,8 @@ class Link(
     }
 
     private fun header(type: Byte) = byteArrayOf('R'.code.toByte(), 'W'.code.toByte(), VERSION, type)
+
+    private fun stick(value: Float) = (value.coerceIn(-1f, 1f) * 32767).roundToInt().toShort()
 
     /**
      * Who this phone is: its id and name, and (with [proof]) that it scanned the last PC code

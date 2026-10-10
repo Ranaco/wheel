@@ -78,6 +78,10 @@ class Motion(
     private var brakeAt = 0f
     private var pedalDeadzone = 0f
     private var swap = false
+    private var drone = false
+    private var droneTilt = 0f
+    private var droneDeadzone = 0f
+    private var droneExpo = 0f
     private var neutralPitch = 0f
     private var neutralSteer = 0f
     private var centered = false
@@ -90,11 +94,11 @@ class Motion(
         sensor?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
     }
 
-    /** Picks up changed settings without restarting the sensor. */
     init {
         reload()
     }
 
+    /** Picks up changed settings without restarting the sensor. */
     fun reload() {
         lock = settings.steerLock
         steerDeadzone = settings.steerDeadzone
@@ -104,6 +108,10 @@ class Motion(
         brakeAt = settings.brakeAt
         pedalDeadzone = settings.pedalDeadzone
         swap = settings.swapPedals
+        drone = settings.droneMode
+        droneTilt = settings.droneTilt
+        droneDeadzone = settings.droneDeadzone
+        droneExpo = settings.droneExpo
         loadNeutral()
     }
 
@@ -190,7 +198,7 @@ class Motion(
 
         val steer = wrap(rawSteer - neutralSteer)
         val tilt = rawPitch - neutralPitch
-        val forward = if (swap) -tilt else tilt
+        val forward = if (swap && !drone) -tilt else tilt
         steerAngle = steer
         forwardAngle = forward
 
@@ -201,6 +209,14 @@ class Motion(
             return
         }
 
+        if (drone) {
+            // Flying: roll and pitch on the right stick, as on a drone radio (Mode 2); the
+            // thumb pad does throttle and yaw. Tipping the top away pushes the stick forward.
+            controls.rightX = shape(steer, droneDeadzone, droneTilt, droneExpo)
+            controls.rightY = if (centered) shape(forward, droneDeadzone, droneTilt, droneExpo) else 0f
+            haptics.reset()
+            return
+        }
         controls.steer = shape(steer, steerDeadzone, lock, curve)
         if (!centered) {
             controls.throttle = 0f

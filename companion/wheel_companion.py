@@ -32,6 +32,11 @@ import vgamepad as vg
 
 import config
 
+try:  # Windows: the connection to ViGEmBus, which reset_bus starts again
+    import vgamepad.win.virtual_gamepad as vigem
+except ImportError:
+    vigem = None
+
 try:  # Windows: which player number each controller has, ours and others', as games see it
     xinput = ctypes.windll.xinput1_4
 except (AttributeError, OSError):
@@ -90,6 +95,8 @@ HANDOVER = 15
 SLOT_MARKS = (37, -29)
 # The terminal's live status line.
 STATUS_WIDTH = 110
+# A controller that won't plug in starts the bus again, but no more often than this.
+BUS_RESET_EVERY = 5
 
 # The phone's buttons, by bit, as named in mapping.json. New ones only go on the end.
 # "start" and "back" are the phone's MENU and VIEW, named after the Xbox buttons they press.
@@ -98,6 +105,8 @@ BUTTONS = [
     "camera", "look_back", "reset", "start", "back",
     # The phone's menu controls: its D-pad and face buttons (and DriveView.xboxOf's fallback).
     "menu_up", "menu_down", "menu_left", "menu_right", "menu_a", "menu_b", "menu_x", "menu_y",
+    # Drone mode's: arming the motors, and the flight mode.
+    "drone_arm", "drone_mode",
 ]
 
 XB = vg.XUSB_BUTTON
@@ -142,6 +151,8 @@ DEFAULT_CONFIG = {
         "menu_b": "B",
         "menu_x": "X",
         "menu_y": "Y",
+        "drone_arm": "A",
+        "drone_mode": "B",
     },
     # Lifts small steering past the game's own stick deadzone (0 to 0.3).
     "steer_anti_deadzone": 0.0,
@@ -150,6 +161,19 @@ DEFAULT_CONFIG = {
 
 class PortBusy(SystemExit):
     """The UDP port is taken: most likely Wheel is already running."""
+
+
+class PlugFailed(Exception):
+    """ViGEmBus didn't take a new controller."""
+
+
+def new_pad():
+    """A new virtual Xbox 360 controller, or PlugFailed. (vgamepad checks it's attached
+    with an assert, and from None drops the failed one's frames so it can be let go.)"""
+    try:
+        return vg.VX360Gamepad()
+    except AssertionError as error:
+        raise PlugFailed(str(error)) from None
 
 
 def load_config():
@@ -278,12 +302,13 @@ class Player:
         self.shown_gap = 0.0
         self.pad = None
         self.next_look = 0.0  # when find_slot may next ask Windows
-        self.plug()
+        self.plugged_at = 0.0
 
     def plug(self):
-        """A new virtual controller. Windows gives it the lowest free player number."""
+        """A new virtual controller (Companion.plug_in, not this, recovers if ViGEmBus won't
+        take it). Windows gives it the lowest free player number."""
         self.companion.slots_changed = self.plugged_at = time.monotonic()
-        self.pad = vg.VX360Gamepad()
+        self.pad = new_pad()
         self.slot = 0
         self.neutral()
         # Last: ViGEm can call on_rumble as soon as it's registered.
@@ -312,10 +337,11 @@ class Player:
     def find_slot(self, now_please=False):
         """The player number Windows gave this controller: what the game calls it.
 
-        Asked of XInput, the way games see it: this controller's right stick (which
-        phones don't use) is nudged by a hair, twice, and the place that moves both times
-        is this one. ViGEm can also say, but after Windows has been full it gives a number
-        that isn't the one games see."""
+        Asked of XInput, the way games see it: this controller's right stick is nudged by a
+        hair, twice, and put straight back, and the place that moves both times is this one.
+        It's done between two packets, so even a drone's pitch on that stick isn't disturbed.
+        ViGEm can also say, but after Windows has been full it gives a number that isn't the
+        one games see."""
         if self.slot or self.pad is None:
             return
         if xinput is not None:
@@ -344,9 +370,10 @@ class Player:
         self.slot = next(n for n in range(1, MAX_PLAYERS + 2) if n not in taken)
 
     def neutral(self):
-        self.pad.reset()
-        self.pad.update()
         self.state = (0.0, 0.0, 0.0, 0)
+        if self.pad is not None:
+            self.pad.reset()
+            self.pad.update()
 
     def apply(self, steer, throttle, brake, buttons, ly=0, rx=0, ry=0):
         steer_f = anti_deadzone(max(-1.0, min(1.0, steer / 32767)), self.companion.anti_deadzone)
@@ -419,6 +446,7 @@ class Companion:
         self.slots_changed = 0.0  # when one of ours last came or went
         self.slots_seen = (0.0, set())  # the last look at which numbers are taken, and when
         self.handover_failed = None  # (top, slots_changed) of a hand-over that didn't land
+        self.bus_reset_at = -BUS_RESET_EVERY  # when reset_bus last ran
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             self.sock.bind(("0.0.0.0", port))
@@ -533,6 +561,7 @@ class Companion:
             self.refused.pop(pid, None)
             default = f"Phone at {addr[0]}" if pid.startswith("address-") else "Phone"
             player = Player(self, pid, self.names.get(pid, default))
+            self.plug_in(player)
             self.players[pid] = player
             if pid not in self.trusted:
                 # Let in while nobody asks first: known from now on, if asking is turned on later.
@@ -540,6 +569,12 @@ class Companion:
             if self.on_join:
                 self.on_join(player)
 
+        if player.pad is None:
+            # Its controller was lost to a bus that wouldn't take it back: try again.
+            try:
+                self.plug_in(player)
+            except PlugFailed:
+                return
         now = time.monotonic()
         arrival = time.perf_counter()
         if addr != player.addr:
@@ -617,10 +652,10 @@ class Companion:
         others = [p for p in self.players.values() if p is not target and p.pad is not None and p.slot and p.slot < target.slot]
         for player in [target, *others]:
             player.unplug()
-        target.plug()
+        self.plug_in(target)
         self.wait_for_slot(target)
         for player in others:
-            player.plug()
+            self.plug_in(player)
             self.wait_for_slot(player)
         now = time.monotonic()
         for player in self.players.values():
@@ -632,6 +667,46 @@ class Companion:
                 self.send_status(player)
         self.first_seen = now
         log(f"{target.name} is Player {target.slot or '?'} now")
+
+    def plug_in(self, player):
+        """player.plug(), and if ViGEmBus won't take it, a fresh start with the bus and one
+        more try; a second refusal is PlugFailed, and the next packet tries again."""
+        try:
+            player.plug()
+        except PlugFailed as error:
+            if time.monotonic() - self.bus_reset_at < BUS_RESET_EVERY:
+                raise
+            log(f"couldn't plug in {player.name}'s controller ({error}): starting again with the bus")
+            self.reset_bus()
+            player.plug()
+
+    def reset_bus(self):
+        """Every controller off, a new connection to ViGEmBus, and every controller back.
+        A controller that failed to plug in can still turn up on the bus, a phantom Player 1
+        that games listen to, and only closing the connection that made it takes it off."""
+        self.bus_reset_at = time.monotonic()
+        if vigem is None:
+            return
+        players = [p for p in self.players.values() if p.pad is not None]
+        for player in players:
+            player.unplug()
+        try:
+            fresh = vigem.VBus()
+        except Exception as error:  # vgamepad raises a bare Exception naming the ViGEm error
+            log(f"couldn't connect to ViGEmBus again ({error})")
+            fresh = None
+        if fresh is not None:
+            vigem.VBUS = fresh
+            gc.collect()  # the old connection goes, and everything it plugged in with it
+        for player in players:
+            try:
+                player.plug()
+                self.wait_for_slot(player)
+            except PlugFailed:
+                log(f"{player.label} has no controller for now")
+        now = time.monotonic()
+        for player in self.players.values():
+            player.last_packet = max(player.last_packet, now - TIMEOUT / 2)  # the reset held the loop up
 
     @staticmethod
     def wait_for_slot(player, timeout=1.5):

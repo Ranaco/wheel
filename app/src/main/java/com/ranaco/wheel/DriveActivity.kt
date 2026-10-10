@@ -232,7 +232,7 @@ class DriveActivity : Activity() {
     }
 
     private fun paddle(keyCode: Int) = when {
-        !settings.volumeShift -> null
+        !settings.volumeShift || settings.droneMode -> null  // a drone has no gears to shift
         keyCode == KeyEvent.KEYCODE_VOLUME_UP -> Button.SHIFT_UP
         keyCode == KeyEvent.KEYCODE_VOLUME_DOWN -> Button.SHIFT_DOWN
         else -> null

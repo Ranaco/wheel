@@ -156,7 +156,8 @@
 const $ = id => document.getElementById(id);
 const LABELS = { handbrake: "Handbrake", boost: "Boost", shift_up: "Shift +", shift_down: "Shift −", horn: "Horn", lights: "Lights",
   camera: "Camera", look_back: "Look back", reset: "Reset", start: "Menu", back: "View",
-  menu_up: "Up", menu_down: "Down", menu_left: "Left", menu_right: "Right", menu_a: "A", menu_b: "B", menu_x: "X", menu_y: "Y" };
+  menu_up: "Up", menu_down: "Down", menu_left: "Left", menu_right: "Right", menu_a: "A", menu_b: "B", menu_x: "X", menu_y: "Y",
+  drone_arm: "Arm", drone_mode: "Mode" };
 let pair = "", shape = "", waiting = "";
 
 const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
