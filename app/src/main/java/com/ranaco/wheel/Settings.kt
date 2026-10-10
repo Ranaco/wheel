@@ -29,7 +29,8 @@ class Settings(context: Context) {
     var droneMode by bool("drone_mode", false)
     /** Tilting this far from neutral is full stick, for pitch and roll. */
     var droneTilt by float("drone_tilt", 30f)
-    var droneDeadzone by float("drone_deadzone", 2f)
+    // Hands holding a phone up wobble a few degrees, and any pitch at all keeps an acro drone turning.
+    var droneDeadzone by float("drone_deadzone", 5f)
     /** 1 is linear; higher is gentler near centre (what drone pilots call expo). */
     var droneExpo by float("drone_expo", 1.5f)
 
@@ -72,12 +73,36 @@ class Settings(context: Context) {
     var flexNeutralSteer by float("flex_neutral_steer", 0f)
     var flexCentered by bool("flex_centered", false)
 
+    // A drone is held its own way too, and making it level mustn't move the wheel's neutral.
+    var droneNeutralPitch by float("drone_neutral_pitch", DEFAULT_PITCH)
+    var droneNeutralSteer by float("drone_neutral_steer", 0f)
+    var droneCentered by bool("drone_centered", false)
+
+    /** A neutral pose: how far back the phone leans, its turn, and whether it's been set. */
+    data class Neutral(val pitch: Float, val steer: Float, val set: Boolean)
+
+    /** The neutral for how the phone's held: half-folded, flying a drone, or as a wheel. */
+    fun neutral(flex: Boolean, drone: Boolean) = when {
+        flex -> Neutral(flexNeutralPitch, flexNeutralSteer, flexCentered)
+        drone -> Neutral(droneNeutralPitch, droneNeutralSteer, droneCentered)
+        else -> Neutral(neutralPitch, neutralSteer, centered)
+    }
+
+    fun setNeutral(flex: Boolean, drone: Boolean, pitch: Float, steer: Float) {
+        when {
+            flex -> { flexNeutralPitch = pitch; flexNeutralSteer = steer; flexCentered = true }
+            drone -> { droneNeutralPitch = pitch; droneNeutralSteer = steer; droneCentered = true }
+            else -> { neutralPitch = pitch; neutralSteer = steer; centered = true }
+        }
+    }
+
     fun resetTuning() {
         prefs.edit().apply {
             listOf("steer_lock", "steer_deadzone", "steer_curve", "smoothing", "gas_at", "brake_at",
                 "pedal_deadzone", "swap_pedals", "drone_tilt", "drone_deadzone", "drone_expo",
                 "neutral_pitch", "neutral_steer", "centered",
-                "flex_neutral_pitch", "flex_neutral_steer", "flex_centered").forEach(::remove)
+                "flex_neutral_pitch", "flex_neutral_steer", "flex_centered",
+                "drone_neutral_pitch", "drone_neutral_steer", "drone_centered").forEach(::remove)
         }.apply()
     }
 

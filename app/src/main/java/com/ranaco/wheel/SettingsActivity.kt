@@ -241,8 +241,9 @@ class SettingsActivity : Activity() {
     }
 
     private fun showNeutral() {
-        neutralLine.text = if (settings.centered) "Neutral is ${settings.neutralPitch.roundToInt()}° leaned back."
-        else "Not set. Hold the phone how you'll drive."
+        val neutral = settings.neutral(flex = false, drone = settings.droneMode)
+        neutralLine.text = if (neutral.set) "${if (settings.droneMode) "Level" else "Neutral"} is ${neutral.pitch.roundToInt()}° leaned back."
+        else "Not set. Hold the phone how you'll ${if (settings.droneMode) "fly" else "drive"}."
     }
 
     private fun header() = LinearLayout(this).apply {

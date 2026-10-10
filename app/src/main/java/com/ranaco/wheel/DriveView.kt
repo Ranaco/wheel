@@ -229,12 +229,12 @@ class DriveView(
         brakeAt = settings.brakeAt
         pedalDeadzone = settings.pedalDeadzone
         lock = settings.steerLock
-        centered = if (flex) settings.flexCentered else settings.centered
-        lastPc = settings.lastPc
         if (drone != settings.droneMode) {
             drone = settings.droneMode
             requestLayout()
         }
+        centered = settings.neutral(flex, drone).set
+        lastPc = settings.lastPc
         // Back on screen, a drone starts with no throttle: never wherever it was left.
         stickPointer = -1
         setStick(0f, 0f)

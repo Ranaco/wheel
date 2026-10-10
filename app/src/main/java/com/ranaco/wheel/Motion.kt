@@ -120,9 +120,10 @@ class Motion(
     }
 
     private fun loadNeutral() {
-        neutralPitch = if (flex) settings.flexNeutralPitch else settings.neutralPitch
-        neutralSteer = if (flex) settings.flexNeutralSteer else settings.neutralSteer
-        centered = if (flex) settings.flexCentered else settings.centered
+        val neutral = settings.neutral(flex, drone)
+        neutralPitch = neutral.pitch
+        neutralSteer = neutral.steer
+        centered = neutral.set
     }
 
     fun stop() {
@@ -135,15 +136,7 @@ class Motion(
         neutralPitch = rawPitch
         neutralSteer = rawSteer
         roll = 0f
-        if (flex) {
-            settings.flexNeutralPitch = rawPitch
-            settings.flexNeutralSteer = rawSteer
-            settings.flexCentered = true
-        } else {
-            settings.neutralPitch = rawPitch
-            settings.neutralSteer = rawSteer
-            settings.centered = true
-        }
+        settings.setNeutral(flex, drone, rawPitch, rawSteer)
         centered = true
     }
 

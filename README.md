@@ -73,8 +73,9 @@ Turn on **Fly a drone** in Settings, for drone games like Liftoff. The phone bec
 | Tap **ARM**, **MODE**, **RESET**, **CAMERA** | A, B, Y, RB |
 
 - The thumb pad moves from wherever your thumb lands, so touching it never jumps the throttle. It starts at no throttle whenever the screen comes back.
-- Tap the middle in your flying position to make it level. Pitch stays level until you do.
-- Settings has its own tuning for flying: how far to tilt for full stick (30° by default), a centre deadzone, and expo.
+- Tap the middle in your flying position to make it level. Pitch stays level until you do. Flying keeps a level of its own, so setting it doesn't move the wheel's neutral.
+- Settings has its own tuning for flying: how far to tilt for full stick (30° by default), a centre deadzone (5°), and expo.
+- Fly in the game's **angle** (self-level) mode. There the stick sets how far the drone leans, which is what tilting the phone does. In **acro** mode a held stick keeps the drone rotating, so any tilt you hold turns it over, and at a steady throttle it climbs or dives.
 - The menu controls work as when driving; the volume keys stay the volume.
 
 ## Tuning
@@ -156,7 +157,7 @@ Also clear **Toggle handbrake**, which is LB by default and clashes with BOOST. 
 
 Clear `ACTION_CELEBRATE` and `ACTION_CLAIM`, which use LB and RB by default. In `[X360]`, the defaults suit a thumbstick, so a phone wheel wants a linear, direct setup: `STEER_GAMMA=1.0`, `STEER_DEADZONE=0.0`, `STEER_FILTER=0.1`, `STEER_SPEED=0.9`, `SPEED_SENSITIVITY=0.3`. The game rumbles mostly through the light motor at a few percent, and the app lifts that so it can be felt. Close the Assetto Corsa launcher before editing the file, because its Controls page can write its own copy back. The game only reads Player 1: use **Make Player 1** for whoever's driving.
 
-**Liftoff** (drone mode). In Options → Controls, pick the Xbox controller, then run its calibration. Slide the thumb pad from bottom to top, yaw it left and right, and tilt the phone through its pitch and roll. Assign throttle to the left stick's Y, yaw to its X, pitch to the right stick's Y and roll to its X. Then bind arm to A, the flight mode to B, reset to Y and the camera to RB. With other controllers plugged in, check Liftoff is using Wheel's.
+**Liftoff** (drone mode). In Options → Controls, pick the Xbox controller, then run its calibration. Slide the thumb pad from bottom to top, yaw it left and right, and tilt the phone through its pitch and roll. Assign throttle to the left stick's Y, yaw to its X, pitch to the right stick's Y and roll to its X. Then bind arm to A, the flight mode to B, reset to Y and the camera to RB. With other controllers plugged in, check Liftoff is using Wheel's. Fly in angle (self-level) mode rather than acro: see Flying above.
 
 ## Protocol
 
