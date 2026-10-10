@@ -1,0 +1,5 @@
+# Line endings: LF in the repo, so gradlew runs on Linux and Mac; CRLF only where Windows needs it.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary

@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wheel</title>
+<style>
+  /* Black like the phone app; grey for chrome; colour only where it means something (gas, brake). */
+  :root {
+    --bg: #000;
+    --card: #0e0e10;
+    --edge: #242428;
+    --fg: #f2f2f3;
+    --label: #b4b4ba;
+    --dim: #6c6c73;
+    --track: #1a1a1d;
+    --gas: #34d399;
+    --brake: #f87171;
+    --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--font); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 24px 40px; display: grid; gap: 28px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: .01em; }
+  .where { color: var(--dim); font-size: 13px; }
+  .where b { color: var(--label); font-weight: 500; }
+  main { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; align-items: start; }
+  @media (max-width: 820px) { main { grid-template-columns: minmax(0, 1fr); } .qr { max-width: 260px; } }
+  .join, .players { min-width: 0; }
+
+  .join { display: grid; gap: 14px; }
+  .qr { background: #fff; border-radius: 20px; padding: 14px; aspect-ratio: 1; display: grid; place-items: center; }
+  .qr img { width: 100%; height: 100%; image-rendering: pixelated; }
+  .join h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .join p { margin: 0; color: var(--label); font-size: 14px; }
+  .addr { font: 13px var(--mono); color: var(--label); background: var(--card); border: 1px solid var(--edge); border-radius: 10px; padding: 8px 12px; }
+  .addr.inline { display: inline-block; max-width: 100%; overflow-wrap: anywhere; margin-top: 6px; padding: 4px 8px; user-select: all; }
+
+  .players h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--dim); letter-spacing: .12em; text-transform: uppercase; display: flex; justify-content: space-between; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+  .slot { background: var(--card); border: 1px solid var(--edge); border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-height: 188px; min-width: 0; }
+  .slot.free { background: transparent; border-style: dashed; color: var(--dim); justify-content: center; align-items: flex-start; }
+  .slot.away { opacity: .62; }
+  .slot.other { border-style: solid; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .num { font-size: 12px; font-weight: 600; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; }
+  .state { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--label); }
+  .state i { width: 7px; height: 7px; border-radius: 50%; background: var(--fg); }
+  .away .state i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--dim); }
+  .name { font-size: 18px; font-weight: 600; margin: -6px 0 0; overflow-wrap: anywhere; }
+  .meters { display: grid; grid-template-columns: 52px 1fr 40px; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .meters .val { text-align: right; color: var(--label); }
+  .bar { position: relative; height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+  .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+  .bar.steer::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--dim); }
+  .bar.steer i { background: var(--fg); }
+  .bar.gas i { left: 0; background: var(--gas); }
+  .bar.brake i { left: 0; background: var(--brake); }
+  .held { display: flex; flex-wrap: wrap; gap: 6px; min-height: 22px; }
+  .held span { font-size: 11px; letter-spacing: .08em; font-weight: 600; text-transform: uppercase; background: var(--fg); color: #000; border-radius: 99px; padding: 2px 9px; }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .foot [data-v] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button { font: inherit; font-size: 12px; color: var(--label); background: none; border: 1px solid var(--edge); border-radius: 99px; padding: 4px 12px; cursor: pointer; }
+  button:hover { color: var(--fg); border-color: var(--dim); }
+  button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .free b { font-size: 16px; font-weight: 600; color: var(--label); }
+
+  .notice { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 10px 14px; color: var(--label); font-size: 13px; }
+  #requests { display: grid; gap: 10px; margin-bottom: 12px; }
+  #requests:empty { display: none; }
+  .request { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    background: var(--card); border: 1px solid var(--label); border-radius: 14px; padding: 12px 16px; }
+  .request b { font-weight: 600; }
+  .request span { color: var(--dim); font-size: 13px; }
+  .actions { display: flex; gap: 6px; flex: none; }
+  button.primary { background: var(--fg); border-color: var(--fg); color: #000; font-weight: 600; }
+  button.primary:hover { color: #000; }
+  .down { text-align: center; padding: 80px 0; color: var(--label); }
+  .down h2 { margin: 0 0 6px; font-size: 18px; color: var(--fg); font-weight: 600; }
+  footer { color: var(--dim); font-size: 12px; }
+  .settings { display: grid; gap: 10px; margin-top: 18px; }
+  .settings h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--dim); letter-spacing: .12em; text-transform: uppercase; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--card); border: 1px solid var(--edge); border-radius: 14px; padding: 12px 16px; }
+  .row b { display: block; font-weight: 600; font-size: 14px; }
+  .row span { color: var(--dim); font-size: 13px; }
+  select { font: inherit; font-size: 13px; color: var(--fg); background: #000; border: 1px solid var(--edge); border-radius: 8px; padding: 5px 8px; }
+  .switch { position: relative; width: 40px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch i { position: absolute; inset: 0; border-radius: 99px; background: #2c2c30; cursor: pointer; transition: background .15s; }
+  .switch i::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #8d8d93; transition: transform .15s, background .15s; }
+  .switch input:checked + i { background: #9a9aa0; }
+  .switch input:checked + i::after { transform: translateX(16px); background: #fff; }
+  .switch input:focus-visible + i { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .handover { font-size: 12px; color: var(--label); }
+  .handover:empty { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Wheel</h1>
+    <div class="where" id="where"></div>
+  </header>
+
+  <main id="app">
+    <section class="join" aria-labelledby="joinTitle">
+      <div class="qr"><img id="qr" alt="QR code to connect a phone" src="/qr.svg"></div>
+      <h2 id="joinTitle">Scan to join</h2>
+      <p>Point the phone's camera at the code and tap the link. Wheel opens and connects.</p>
+      <div class="addr" id="addr"></div>
+      <p>On the same Wi-Fi, Wheel also finds this PC by itself.</p>
+      <p>No Wheel on their phone yet? Scanning offers the download, or open <span class="addr inline" id="get"></span></p>
+    </section>
+
+    <section class="players" aria-labelledby="playersTitle">
+      <h2 id="playersTitle"><span>Players</span><span id="count"></span></h2>
+      <div id="requests"></div>
+      <div id="notice"></div>
+      <div class="grid" id="grid"></div>
+      <div class="settings">
+        <h2>When phones come and go</h2>
+        <label class="row" for="keep">
+          <div><b>Keep a controller after its phone leaves</b><span>So a game doesn't drop the player over a dropout.</span></div>
+          <select id="keep"><option value="1">1 min</option><option value="2">2 min</option><option value="5">5 min</option><option value="10">10 min</option><option value="30">30 min</option></select>
+        </label>
+        <div class="row">
+          <div><b>Keep someone playing as Player 1</b><span>Most single-player games only listen to Player 1. When that phone has been gone <span id="handoverAfter">15</span> seconds, the next phone takes over.</span></div>
+          <label class="switch" for="promote"><input type="checkbox" id="promote"><i></i></label>
+        </div>
+        <div class="row">
+          <div><b>Ask before a new phone joins</b><span>Phones you allow, and phones that scan the code on this screen, join straight away from then on.</span></div>
+          <label class="switch" for="ask"><input type="checkbox" id="ask"><i></i></label>
+        </div>
+        <div class="row">
+          <div><b>Phones this PC knows</b><span id="known"></span></div>
+          <span class="actions"><button type="button" id="unblock" hidden>Unblock all</button><button type="button" id="forgetAll">Forget all</button></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="down" id="down" hidden>
+    <h2>Wheel isn't running</h2>
+    <p>Open Wheel from the Start menu. This window reconnects by itself.</p>
+  </div>
+
+  <footer id="footer">Closing this window doesn't stop Wheel.</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const LABELS = { handbrake: "Handbrake", boost: "Boost", shift_up: "Shift +", shift_down: "Shift −", horn: "Horn", lights: "Lights",
+  camera: "Camera", look_back: "Look back", reset: "Reset", start: "Menu", back: "View",
+  menu_up: "Up", menu_down: "Down", menu_left: "Left", menu_right: "Right", menu_a: "A", menu_b: "B", menu_x: "X", menu_y: "Y" };
+let pair = "", shape = "", waiting = "";
+
+const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const escape = text => { const d = document.createElement("div"); d.textContent = text; return d.innerHTML; };
+
+function meter(label, cls) {
+  return `<span>${label}</span><div class="bar ${cls}"><i></i></div><span class="val" data-v="${cls}"></span>`;
+}
+
+// A card's frame; its numbers are filled in by fill(), every poll, without rebuilding it.
+function frame(p, slot, state) {
+  if (state.others.includes(slot)) return `<div class="slot free other"><div class="num">Player ${slot}</div><b>Another controller</b><span>A gamepad or wheel plugged into this PC. Phones take the places after it.</span></div>`;
+  if (!p) return `<div class="slot free"><div class="num">Player ${slot}</div><b>Free</b><span>Scan the code to join.</span></div>`;
+  return `<div class="slot${p.live ? "" : " away"}" data-id="${p.id}">
+    <div class="top"><span class="num">Player ${p.slot || slot}</span><span class="state"><i></i><span data-v="status"></span></span></div>
+    <div class="name">${escape(p.name)}</div>
+    <div class="meters">${meter("Steer", "steer")}${meter("Gas", "gas")}${meter("Brake", "brake")}</div>
+    <div class="held" data-v="held"></div>
+    <div class="handover" data-v="handover"></div>
+    <div class="foot"><span data-v="foot"></span><span class="actions">${p.live && p.slot && p.slot !== state.top ? `<button type="button" data-promote="${p.id}">Make Player ${state.top}</button>` : ""}<button type="button" data-forget="${p.id}">Remove</button></span></div>
+  </div>`;
+}
+
+function fill(el, p, state) {
+  const v = name => el.querySelector(`[data-v="${name}"]`);
+  const bar = (cls, from, to) => { const i = el.querySelector(`.bar.${cls} i`); i.style.left = from + "%"; i.style.width = (to - from) + "%"; };
+  const steer = p.steer;
+  bar("steer", steer < 0 ? 50 + steer * 50 : 50, steer > 0 ? 50 + steer * 50 : 50);
+  bar("gas", 0, p.gas * 100);
+  bar("brake", 0, p.brake * 100);
+  v("steer").textContent = steer === 0 ? "0" : `${steer < 0 ? "L" : "R"} ${Math.abs(Math.round(steer * 100))}`;
+  v("gas").textContent = Math.round(p.gas * 100);
+  v("brake").textContent = Math.round(p.brake * 100);
+  v("status").textContent = p.live ? "Live" : `Away ${mmss(p.away)}`;
+  v("held").innerHTML = p.held.map(h => `<span>${LABELS[h] || h}</span>`).join("") + (p.rumble ? "<span>Rumble</span>" : "");
+  v("handover").textContent = state.handoverIn == null ? ""
+    : p.id === state.handoverTo ? `Becomes Player ${state.top} in ${state.handoverIn} s`
+    : p.slot === state.top ? `Hands Player ${state.top} over in ${state.handoverIn} s` : "";
+  v("foot").textContent = p.live
+    ? `${p.rate}/s · ${p.gap} ms gap${p.lost ? ` · ${p.lost} lost` : ""}`
+    : `Keeps its controller ${Math.max(0, Math.ceil((state.keepMinutes * 60 - p.away) / 60))} more min`;
+}
+
+function render(state) {
+  $("where").innerHTML = `<b>${escape(state.pc)}</b> · ${state.address}`;
+  $("addr").textContent = `${state.address}:${state.port}`;
+  $("get").textContent = state.get;
+  $("footer").textContent = state.tray
+    ? "Closing this window doesn't stop Wheel. It keeps running in the tray by the clock; quit it from there."
+    : "Closing this window doesn't stop Wheel. To stop it, press Ctrl+C in its terminal.";
+  if (state.pair !== pair) { pair = state.pair; $("qr").src = "/qr.svg?v=" + encodeURIComponent(pair); }
+  $("count").textContent = `${state.players.length} of ${state.room}`;
+  // One card per player number Windows has (four at most), each player where Windows put it;
+  // any not numbered yet fill the gaps.
+  const size = Math.min(state.places, Math.max(state.max, ...state.others, ...state.players.map(p => p.slot)));
+  const slots = Array.from({ length: size }, () => null), later = [];
+  for (const p of state.players) {
+    if (p.slot >= 1 && p.slot <= size && !slots[p.slot - 1]) slots[p.slot - 1] = p; else later.push(p);
+  }
+  for (const p of later) { const i = slots.findIndex((q, n) => !q && !state.others.includes(n + 1)); if (i >= 0) slots[i] = p; }
+  // Rebuild only when someone joins, leaves or changes state, so a click on Remove lands.
+  const now = slots.map(p => p ? `${p.id}/${p.slot}/${p.live}/${p.name}` : "-").join("|") + `|${state.others}|${state.top}`;
+  if (now !== shape) { shape = now; $("grid").innerHTML = slots.map((p, i) => frame(p, i + 1, state)).join(""); }
+  if (document.activeElement !== $("keep")) $("keep").value = String(state.keepMinutes);
+  $("promote").checked = state.autoPromote;
+  $("handoverAfter").textContent = state.handoverAfter;
+  for (const p of state.players) { const el = $("grid").querySelector(`[data-id="${p.id}"]`); if (el) fill(el, p, state); }
+  $("notice").innerHTML = state.turnedAway.length
+    ? `<p class="notice">${escape(state.turnedAway[0].name)} tried to join, but every controller is taken. Remove a player to make room.</p>` : "";
+  // Phones asking to join; rebuilt only when that list changes, so a click on Allow lands.
+  const asking = state.waiting.map(w => w.id + "/" + w.name).join("|");
+  if (asking !== waiting) {
+    waiting = asking;
+    $("requests").innerHTML = state.waiting.map(w => `<div class="request">
+      <div><b>${escape(w.name)}</b> wants to join <span>from ${escape(w.address)}</span></div>
+      <span class="actions"><button type="button" data-block="${w.id}">Block</button><button type="button" class="primary" data-allow="${w.id}">Allow</button></span>
+    </div>`).join("");
+  }
+  $("ask").checked = state.askNew;
+  const phones = n => `${n} phone${n === 1 ? "" : "s"}`;
+  $("known").textContent = `${phones(state.allowed)} allowed` + (state.blocked ? `, ${phones(state.blocked)} blocked` : "") + ".";
+  $("unblock").hidden = !state.blocked;
+  $("forgetAll").hidden = !state.allowed;
+}
+
+const post = (path, body) => fetch(path, { method: "POST", headers: { "X-Wheel": "1", "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+$("grid").addEventListener("click", e => {
+  const b = e.target.closest("[data-forget], [data-promote]");
+  if (!b) return;
+  b.disabled = true;
+  if (b.dataset.forget) post("/forget", { id: b.dataset.forget });
+  else post("/promote", { id: b.dataset.promote });
+});
+$("requests").addEventListener("click", e => {
+  const b = e.target.closest("[data-allow], [data-block]");
+  if (!b) return;
+  b.closest(".request").querySelectorAll("button").forEach(x => x.disabled = true);
+  if (b.dataset.allow) post("/allow", { id: b.dataset.allow });
+  else post("/block", { id: b.dataset.block });
+});
+$("keep").addEventListener("change", e => post("/settings", { keepMinutes: Number(e.target.value) }));
+$("promote").addEventListener("change", e => post("/settings", { autoPromote: e.target.checked }));
+$("ask").addEventListener("change", e => post("/settings", { askNew: e.target.checked }));
+$("unblock").addEventListener("click", () => post("/unblock-all"));
+// Forgetting means everyone asks (or scans) again, so it takes a second click to be sure.
+let sure = 0;
+$("forgetAll").addEventListener("click", e => {
+  if (Date.now() - sure > 3000) {
+    sure = Date.now();
+    e.target.textContent = "Click again to forget";
+    setTimeout(() => { e.target.textContent = "Forget all"; }, 3000);
+    return;
+  }
+  sure = 0;
+  e.target.textContent = "Forget all";
+  post("/forget-phones");
+});
+
+async function poll() {
+  try {
+    const r = await fetch("/state", { cache: "no-store" });
+    render(await r.json());
+    $("app").hidden = false; $("down").hidden = true;
+  } catch {
+    $("app").hidden = true; $("down").hidden = false; shape = ""; waiting = "";
+  }
+  setTimeout(poll, 100);
+}
+poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Build output (Gradle's, and PyInstaller's in companion/)
+build/
+.gradle/
+.kotlin/
+companion/dist/
+__pycache__/
+*.apk
+*.aab
+# This machine's own
+local.properties
+.idea/
+*.iml
+# Release signing stays on this machine.
+keystore.properties
+*.jks
