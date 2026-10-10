@@ -26,7 +26,7 @@ After that it runs in the tray by the clock. Its window holds the code to scan, 
 **Building:**
 - The app: `./gradlew assembleRelease`, signed with the key named in an untracked `keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Without that file, `./gradlew assembleDebug` builds a debug copy.
 - `Wheel.exe`: `pip install vgamepad segno pystray pillow pyinstaller`, then `python companion/build_exe.py`. It ships the newest build of the app inside, the release one if there is one.
-- From source instead of the exe: install the [ViGEmBus](https://github.com/ViGEm/ViGEmBus/releases/tag/setup-v1.17.333) driver (`pip install vgamepad` offers it), `pip install vgamepad segno`, then `python companion/wheel_companion.py`. Allow Python through the firewall on private networks. Options: `--no-browser` (serve the page without opening it), `--no-ui` (terminal only), `--max-players` (fewer than four phones), `--port`, `--ui-port`, `--pair-port`, `--quiet` (no live status line).
+- From source instead of the exe: install the [ViGEmBus](https://github.com/ViGEm/ViGEmBus/releases/tag/setup-v1.17.333) driver (`pip install vgamepad` offers it), `pip install vgamepad segno`, then `python companion/wheel_companion.py`. Allow Python through the firewall on private networks. Options: `--no-browser` (serve the page without opening it), `--no-ui` (terminal only), `--max-players` (fewer than four phones), `--name` (what phones call this PC), `--port`, `--ui-port`, `--pair-port`, `--quiet` (no live status line).
 
 ## Players
 

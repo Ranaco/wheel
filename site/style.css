@@ -1,0 +1,78 @@
+/* Wheel's site: black like the app, quiet greys, and the app's own green only where it means "go". */
+:root {
+  --bg: #000;
+  --card: #0e0e10;
+  --edge: #242428;
+  --fg: #f2f2f3;
+  --label: #b4b4ba;
+  --dim: #6c6c73;
+  --go: #34d399;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: var(--fg); }
+img { max-width: 100%; display: block; }
+
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+header.top { display: flex; align-items: center; justify-content: space-between; padding-block: 24px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 18px; }
+.brand img { width: 28px; height: 28px; border-radius: 7px; }
+header.top nav { display: flex; gap: 22px; font-size: 15px; }
+header.top nav a { color: var(--label); text-decoration: none; }
+header.top nav a:hover { color: var(--fg); }
+
+.hero { padding-block: 56px 32px; text-align: center; display: grid; justify-items: center; gap: 18px; }
+.hero h1 { margin: 0; font-size: clamp(38px, 6vw, 60px); line-height: 1.08; font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
+.hero p { margin: 0; max-width: 36em; color: var(--label); font-size: 19px; text-wrap: balance; }
+.get { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 10px; }
+.button { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 999px; font-weight: 600; font-size: 16px; text-decoration: none; border: 1px solid var(--edge); }
+.button.primary { background: var(--fg); color: #000; border-color: var(--fg); }
+.button:hover { border-color: var(--dim); }
+.button small { font-weight: 400; color: inherit; opacity: .7; }
+.note { color: var(--dim); font-size: 14px; }
+
+.shot { margin: 28px auto 0; max-width: 980px; }
+section .shot { margin-top: 40px; }
+.shot img { width: 100%; height: auto; }
+
+section { padding-block: 56px; border-top: 1px solid var(--edge); }
+section h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+section .lead { margin: 0 0 28px; font-size: 26px; font-weight: 600; line-height: 1.25; max-width: 28em; text-wrap: balance; }
+
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 0; margin: 0; list-style: none; counter-reset: step; }
+.steps li { background: var(--card); border: 1px solid var(--edge); border-radius: 18px; padding: 20px 22px; counter-increment: step; }
+.steps li::before { content: counter(step); display: block; font-size: 13px; font-weight: 600; color: var(--dim); margin-bottom: 8px; }
+.steps b { display: block; font-weight: 600; margin-bottom: 4px; }
+.steps span { color: var(--label); font-size: 15px; }
+
+.features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 40px; }
+.features div { min-width: 0; }
+.features b { display: block; font-weight: 600; margin-bottom: 4px; }
+.features p { margin: 0; color: var(--label); font-size: 16px; }
+
+.faq { display: grid; gap: 22px; max-width: 46em; }
+.faq b { display: block; font-weight: 600; margin-bottom: 4px; }
+.faq p { margin: 0; color: var(--label); font-size: 16px; }
+code { font: 14px "Cascadia Mono", Consolas, ui-monospace, monospace; color: var(--fg); background: var(--card); border: 1px solid var(--edge); border-radius: 6px; padding: 1px 6px; }
+
+footer.foot { border-top: 1px solid var(--edge); padding-block: 28px 40px; display: flex; flex-wrap: wrap; gap: 20px; color: var(--dim); font-size: 14px; }
+footer.foot a { color: var(--label); text-decoration: none; }
+footer.foot .made { margin-left: auto; }
+
+/* The privacy page */
+article.doc { max-width: 42em; margin: 0 auto; padding: 24px 24px 56px; }
+article.doc h1 { font-size: 34px; line-height: 1.2; margin: 6px 0 4px; font-weight: 600; text-wrap: balance; }
+article.doc .kicker { font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+article.doc .updated { color: var(--dim); font-size: 14px; margin: 0 0 28px; }
+article.doc h2 { font-size: 19px; margin: 32px 0 8px; font-weight: 600; }
+article.doc p, article.doc li { color: var(--label); }
+article.doc b { color: var(--fg); font-weight: 600; }
+article.doc ul { padding-left: 20px; display: grid; gap: 8px; }
+
+@media (max-width: 760px) {
+  .steps, .features { grid-template-columns: minmax(0, 1fr); }
+  header.top nav { gap: 14px; }
+  footer.foot .made { margin-left: 0; }
+}

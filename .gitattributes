@@ -3,3 +3,4 @@
 *.bat text eol=crlf
 *.jar binary
 *.png binary
+site/download/*.exe filter=lfs diff=lfs merge=lfs -text

@@ -142,6 +142,7 @@ def main():
         d = Phone(b"\x44" * 8, "Guest")
         d.discover()
         check("with asking off, a new phone joins straight away", plays(d, before, 2.0))
+        time.sleep(0.3)  # the page's picture is redrawn every 0.1 s
         check("and is remembered", state()["allowed"] == 3, state()["allowed"])
 
         post("/forget-phones")

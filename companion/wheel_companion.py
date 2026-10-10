@@ -374,7 +374,7 @@ class Player:
 
 class Companion:
     def __init__(self, mapping, settings=None, port=PORT, max_players=MAX_PLAYERS, quiet=False, pair_port=PAIR_PORT,
-                 tray=False):
+                 tray=False, name=None):
         """settings: as config.load() gives them; changes from the page are saved back there."""
         settings = {**config.DEFAULTS, **(settings or {})}
         resolved = resolve_buttons(mapping)
@@ -400,7 +400,7 @@ class Companion:
         self.port = port
         self.max_players = max_players
         self.quiet = quiet
-        self.name = socket.gethostname()
+        self.name = name or socket.gethostname()  # what phones call this PC
         self.address = lan_address()
         self.address_checked = time.monotonic()
         self.players = {}       # phone id -> Player
@@ -871,12 +871,13 @@ def main():
     parser.add_argument("--no-ui", action="store_true", help="don't serve the page")
     parser.add_argument("--no-browser", action="store_true", help="serve the page but don't open it")
     parser.add_argument("--max-players", type=int, default=MAX_PLAYERS, help="take fewer than four phones")
+    parser.add_argument("--name", help="what phones call this PC (its computer name by default)")
     parser.add_argument("--quiet", action="store_true", help="no live status line")
     args = parser.parse_args()
 
     keep_responsive()
     companion = Companion(load_config(), config.load(), port=args.port, max_players=args.max_players,
-                          quiet=args.quiet, pair_port=args.pair_port)
+                          quiet=args.quiet, pair_port=args.pair_port, name=args.name)
     if not args.no_ui:
         import ui
         if not ui.serve_pairing(companion):
