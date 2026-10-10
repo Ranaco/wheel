@@ -47,6 +47,7 @@ class Motion(
             field = value
             loadNeutral()
             primed = false
+            roll = 0f
         }
 
     /** Angles as last read, relative to neutral, for the dial. */
@@ -66,6 +67,8 @@ class Motion(
     private var smoothY = 0f
     private var smoothZ = 0f
     private var primed = false
+    /** A drone's roll, kept continuous: past 180° it carries on (200°) rather than wrapping to -160°. */
+    private var roll = 0f
 
     // A snapshot of the settings, so the sensor thread doesn't read preferences 400 times a
     // second; taken again by reload(). Until the first centre, nobody has said what "no
@@ -91,6 +94,7 @@ class Motion(
     fun start() {
         reload()
         primed = false
+        roll = 0f
         sensor?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
     }
 
@@ -130,6 +134,7 @@ class Motion(
     fun recenter() {
         neutralPitch = rawPitch
         neutralSteer = rawSteer
+        roll = 0f
         if (flex) {
             settings.flexNeutralPitch = rawPitch
             settings.flexNeutralSteer = rawSteer
@@ -196,13 +201,14 @@ class Motion(
             flat = abs(rawPitch) > FLAT
         }
 
-        val steer = wrap(rawSteer - neutralSteer)
+        val steer = if (drone) unwrapRoll(wrap(rawSteer - neutralSteer)) else wrap(rawSteer - neutralSteer)
         val tilt = rawPitch - neutralPitch
         val forward = if (swap && !drone) -tilt else tilt
         steerAngle = steer
         forwardAngle = forward
 
-        parked = flat || abs(steer) > UPSIDE_DOWN
+        // Upside down is a phone that's been put down, unless it's flying: a drone can roll right over.
+        parked = flat || (!drone && abs(steer) > UPSIDE_DOWN)
         if (parked || controls.menu) {
             controls.neutral()
             haptics.reset()
@@ -226,6 +232,15 @@ class Motion(
             controls.brake = pedal(-forward, pedalDeadzone, brakeAt)
         }
         haptics.update(controls.steer, controls.throttle, controls.brake)
+    }
+
+    /** The roll nearest the last one, so a roll past 180° keeps the stick where it was going. */
+    private fun unwrapRoll(wrapped: Float): Float {
+        var next = wrapped
+        while (next - roll > 180f) next -= 360f
+        while (next - roll < -180f) next += 360f
+        roll = next
+        return next
     }
 
     override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) = Unit
