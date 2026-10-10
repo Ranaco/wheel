@@ -1,6 +1,6 @@
 # Wheel
 
-Your phone is the steering wheel and the pedals for PC racing games. Turn it to steer and tilt it to accelerate and brake. Touch buttons cover the one-off actions: horn, lights, camera and so on, and a D-pad with A, B, X and Y covers the game's menus. A drone mode flies drone games like Liftoff instead. The PC sees an ordinary Xbox 360 controller, so it works in any game with controller support. Up to four phones can play at once, each as its own controller.
+Your phone is the steering wheel and the pedals for PC racing games. Turn it to steer and tilt it to accelerate and brake. Touch buttons cover the one-off actions: horn, lights, camera and so on, and a D-pad with A, B, X and Y covers the game's menus. A drone mode turns the screen into a drone radio's two sticks, for games like Liftoff. The PC sees an ordinary Xbox 360 controller, so it works in any game with controller support. Up to four phones can play at once, each as its own controller.
 
 ```
 phones (app) --UDP 47800, Wi-Fi--> Wheel for PC (tray app, or wheel_companion.py) --ViGEmBus--> a virtual Xbox 360 pad per phone --> game
@@ -62,20 +62,17 @@ Each button shows the Xbox button it presses on this PC (A, LB, ≡ and so on), 
 
 ## Flying (drone mode)
 
-Turn on **Fly a drone** in Settings, for drone games like Liftoff. The phone becomes a drone radio's two sticks, in the usual Mode 2 layout:
+Turn on **Fly a drone** in Settings, for drone games like Liftoff. The screen becomes a drone radio: two touch sticks, in the usual Mode 2 layout, and no motion at all (the phone's sensors are off).
 
-| You do | Game gets |
-|---|---|
-| Roll the phone in the plane of the screen | Right stick X (roll) |
-| Tip the top away from you / toward you | Right stick Y, forward / back (pitch) |
-| Slide your left thumb up and down the pad | Left stick Y (throttle), which stays where you leave it |
-| Slide it left and right | Left stick X (yaw), which springs back to centre |
-| Tap **ARM**, **MODE**, **RESET**, **CAMERA** | A, B, Y, RB |
+| Stick | Up and down | Left and right |
+|---|---|---|
+| Left | Throttle (left stick Y), which stays where you leave it | Yaw (left stick X), which springs back |
+| Right | Pitch (right stick Y), which springs back | Roll (right stick X), which springs back |
 
-- The thumb pad moves from wherever your thumb lands, so touching it never jumps the throttle. It starts at no throttle whenever the screen comes back.
-- Tap the middle in your flying position to make it level. Pitch stays level until you do. Flying keeps a level of its own, so setting it doesn't move the wheel's neutral.
-- Settings has its own tuning for flying: how far to tilt for full stick (30° by default), a centre deadzone (5°), and expo.
-- Fly in the game's **angle** (self-level) mode. There the stick sets how far the drone leans, which is what tilting the phone does. In **acro** mode a held stick keeps the drone rotating, so any tilt you hold turns it over, and at a steady throttle it climbs or dives.
+**ARM**, **MODE**, **RESET** and **CAMERA**, in the middle, press A, B, Y and RB.
+
+- Each stick moves from wherever your thumb lands, so touching one never jumps it. The throttle starts at none whenever the screen comes back.
+- Settings → Sticks sets how far your thumb moves for full stick (60 dp by default; the throttle's whole travel is twice that), and the expo on yaw, pitch and roll.
 - The menu controls work as when driving; the volume keys stay the volume.
 
 ## Tuning
@@ -157,7 +154,7 @@ Also clear **Toggle handbrake**, which is LB by default and clashes with BOOST. 
 
 Clear `ACTION_CELEBRATE` and `ACTION_CLAIM`, which use LB and RB by default. In `[X360]`, the defaults suit a thumbstick, so a phone wheel wants a linear, direct setup: `STEER_GAMMA=1.0`, `STEER_DEADZONE=0.0`, `STEER_FILTER=0.1`, `STEER_SPEED=0.9`, `SPEED_SENSITIVITY=0.3`. The game rumbles mostly through the light motor at a few percent, and the app lifts that so it can be felt. Close the Assetto Corsa launcher before editing the file, because its Controls page can write its own copy back. The game only reads Player 1: use **Make Player 1** for whoever's driving.
 
-**Liftoff** (drone mode). In Options → Controls, pick the Xbox controller, then run its calibration. Slide the thumb pad from bottom to top, yaw it left and right, and tilt the phone through its pitch and roll. Assign throttle to the left stick's Y, yaw to its X, pitch to the right stick's Y and roll to its X. Then bind arm to A, the flight mode to B, reset to Y and the camera to RB. With other controllers plugged in, check Liftoff is using Wheel's. Fly in angle (self-level) mode rather than acro: see Flying above.
+**Liftoff** (drone mode). In Options → Controls, pick the Xbox controller, then run its calibration, moving each stick on the phone through its whole travel. Assign throttle to the left stick's Y, yaw to its X, pitch to the right stick's Y and roll to its X. Then bind arm to A, the flight mode to B, reset to Y and the camera to RB. With other controllers plugged in, check Liftoff is using Wheel's.
 
 ## Protocol
 

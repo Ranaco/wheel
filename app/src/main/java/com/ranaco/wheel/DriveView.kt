@@ -67,7 +67,7 @@ class DriveView(
 
     /**
      * Held buttons get bigger type, paddles a big sign; arrows and face buttons are their
-     * Xbox mark; all of them black until pressed. STICK is drone mode's thumb pad.
+     * Xbox mark; all of them black until pressed. STICK is one of drone mode's two sticks.
      */
     private enum class Kind { HOLD, PADDLE, TAP, ARROW, FACE, GEAR, STICK }
 
@@ -108,8 +108,9 @@ class DriveView(
     private val faceX = Pad("", Button.MENU_X, Kind.FACE)
     private val faceY = Pad("", Button.MENU_Y, Kind.FACE)
 
-    // Drone mode: throttle and yaw under the left thumb, its own buttons under the right.
-    private val stick = Pad("", kind = Kind.STICK)
+    // Drone mode: two sticks, as on a drone's radio (Mode 2), and its buttons in the middle.
+    private val leftStick = Pad("", kind = Kind.STICK)
+    private val rightStick = Pad("", kind = Kind.STICK)
     private val arm = Pad("ARM", Button.DRONE_ARM, Kind.HOLD)
     private val flightMode = Pad("MODE", Button.DRONE_MODE)
 
@@ -118,7 +119,7 @@ class DriveView(
     private val droneTop = listOf(back, start, toggle, gear)
     private val menuPads = listOf(arrowUp, arrowDown, arrowLeft, arrowRight, faceA, faceB, faceX, faceY)
     private val driving = listOf(shiftDown, horn, lights, boost, shiftUp, camera, lookBack, handbrake) + wheelTop
-    private val flying = listOf(stick, camera, flightMode, reset, arm) + droneTop
+    private val flying = listOf(leftStick, rightStick, arm, flightMode, reset, camera) + droneTop
     private val menuing = menuPads + wheelTop
     private val menuingDrone = menuPads + droneTop
     private val drawn get() = when {
@@ -141,13 +142,18 @@ class DriveView(
 
     /** Flying a drone instead of driving (Settings.droneMode). */
     private var drone = false
-    /** The thumb pad: throttle, 0 to 1, stays where it's left; yaw, -1 to 1, springs back. */
+    /** The sticks. Throttle, 0 to 1, stays where it's left, as on a radio; yaw, pitch and
+     *  roll, -1 to 1 (right and up positive), spring back to centre. */
     private var throttle = 0f
     private var yaw = 0f
-    /** The finger on the thumb pad, or -1, and where it came down, with the throttle then. */
-    private var stickPointer = -1
-    private val stickFrom = PointF()
-    private var throttleFrom = 0f
+    private var pitch = 0f
+    private var roll = 0f
+    /** A finger on a stick: which one, where it came down, and the throttle then. */
+    private class Grip(val stick: Pad, val x: Float, val y: Float, val throttle: Float)
+    private val grips = SparseArray<Grip>()
+    // From Settings: the sticks' expo, and how far a thumb moves for full stick.
+    private var expo = 1f
+    private var reach = 1f
 
     // From Settings when the screen comes back (see refresh), not on every frame.
     private var gasAt = settings.gasAt
@@ -229,31 +235,78 @@ class DriveView(
         brakeAt = settings.brakeAt
         pedalDeadzone = settings.pedalDeadzone
         lock = settings.steerLock
+        expo = settings.droneExpo
+        reach = settings.droneStick * dp
         if (drone != settings.droneMode) {
             drone = settings.droneMode
+            resetSticks()
             requestLayout()
         }
-        centered = settings.neutral(flex, drone).set
+        centered = settings.neutral(flex).set
         lastPc = settings.lastPc
-        // Back on screen, a drone starts with no throttle: never wherever it was left.
-        stickPointer = -1
-        setStick(0f, 0f)
         invalidate()
     }
 
-    /** Drone mode's throttle and yaw, onto the left stick: up is more throttle, as on a radio. */
-    private fun setStick(newThrottle: Float, newYaw: Float) {
-        val t = newThrottle.coerceIn(0f, 1f)
-        // A tick at no throttle and at full, so the ends can be found without looking.
-        if ((t == 0f || t == 1f) && t != throttle) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-        throttle = t
-        yaw = newYaw.coerceIn(-1f, 1f)
-        if (drone) {
-            controls.leftY = throttle * 2 - 1
-            controls.steer = yaw
-        } else {
+    /** Back on screen, a drone starts with no throttle and every stick centred: never wherever they were left. */
+    fun resetSticks() {
+        grips.clear()
+        throttle = 0f
+        yaw = 0f
+        pitch = 0f
+        roll = 0f
+        sendSticks()
+    }
+
+    /** The sticks onto the controller, Mode 2: throttle and yaw on the left, pitch and roll on the right. */
+    private fun sendSticks() {
+        if (!drone) {
             controls.leftY = 0f
+            controls.rightX = 0f
+            controls.rightY = 0f
+            return
         }
+        controls.leftY = throttle * 2 - 1
+        controls.steer = Motion.shape(yaw, 0f, 1f, expo)
+        controls.rightX = Motion.shape(roll, 0f, 1f, expo)
+        controls.rightY = Motion.shape(pitch, 0f, 1f, expo)
+    }
+
+    /** A finger on a stick moved: from where it came down, [reach] is full stick. */
+    private fun moveStick(grip: Grip, x: Float, y: Float) {
+        val dx = ((x - grip.x) / reach).coerceIn(-1f, 1f)
+        val dy = ((grip.y - y) / reach).coerceIn(-1f, 1f)
+        if (grip.stick === leftStick) {
+            // The throttle's whole travel is twice the reach, like a stick from bottom to top.
+            val t = (grip.throttle + (grip.y - y) / (2 * reach)).coerceIn(0f, 1f)
+            // A tick at no throttle and at full, so the ends can be found without looking.
+            if ((t == 0f || t == 1f) && t != throttle) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            throttle = t
+            yaw = dx
+        } else {
+            roll = dx
+            pitch = dy
+        }
+        sendSticks()
+    }
+
+    /** A finger left a stick: everything on it but the throttle springs back. */
+    private fun letGo(grip: Grip) {
+        if (grip.stick === leftStick) {
+            yaw = 0f
+        } else {
+            roll = 0f
+            pitch = 0f
+        }
+        sendSticks()
+    }
+
+    /** Every finger off the sticks at once: all but the throttle back to centre. */
+    private fun letGoAll() {
+        grips.clear()
+        yaw = 0f
+        pitch = 0f
+        roll = 0f
+        sendSticks()
     }
 
     override fun onAttachedToWindow() {
@@ -282,10 +335,10 @@ class DriveView(
         now[11] = if (motion.available) 1 else 0
         now[12] = link.xbox.contentHashCode()
         now[13] = (menu?.ordinal ?: -1) + 1
-        now[14] = (throttle * 200).roundToInt() + if (stickPointer >= 0) 1000 else 0
-        now[15] = (yaw * 100).roundToInt()
-        now[16] = (controls.rightX * 200).roundToInt()
-        now[17] = (controls.rightY * 200).roundToInt()
+        now[14] = (throttle * 200).roundToInt() + grips.size() * 1000
+        now[15] = (yaw * 200).roundToInt()
+        now[16] = (roll * 200).roundToInt()
+        now[17] = (pitch * 200).roundToInt()
     }
 
     /**
@@ -315,8 +368,7 @@ class DriveView(
             for (k in 0 until owners.size()) owners.valueAt(k).button?.let(controls::release)
             owners.clear()
             swipes.clear()
-            stickPointer = -1
-            setStick(throttle, 0f)
+            letGoAll()
             controls.menu = entry != null
             performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
             requestLayout()
@@ -347,7 +399,7 @@ class DriveView(
         // Gripping the ends mustn't fire the back gesture: these are the pads at the edges.
         val edges = when {
             menu != null -> listOf(arrowLeft.rect, faceB.rect)
-            drone -> listOf(stick.rect, arm.rect)
+            drone -> listOf(leftStick.rect, rightStick.rect)
             else -> listOf(boost.rect, handbrake.rect)
         }
         systemGestureExclusionRects = edges.map {
@@ -415,12 +467,25 @@ class DriveView(
             bottom.rect.set(x0, y, x1, b)
         }
         if (drone) {
-            stick.rect.set(l, y0, l + half, b)
-            side(r - half, camera, flightMode, reset, arm)
+            leftStick.rect.set(l, y0, l + half, b)
+            rightStick.rect.set(r - half, y0, r, b)
+            droneButtons(l + gap, r - gap, areaTop, areaBottom, gap)
             return
         }
         side(l, shiftDown, horn, lights, boost)
         side(r - half, shiftUp, camera, lookBack, handbrake)
+    }
+
+    /** A drone's buttons, two by two at the bottom of the middle, with the card above them. */
+    private fun droneButtons(l: Float, r: Float, top: Float, bottom: Float, gap: Float) {
+        val h = 54 * dp
+        val w = (r - l - gap) / 2
+        val y = bottom - 2 * h - gap
+        arm.rect.set(l, y, l + w, y + h)
+        flightMode.rect.set(l + w + gap, y, r, y + h)
+        reset.rect.set(l, y + h + gap, l + w, bottom)
+        camera.rect.set(l + w + gap, y + h + gap, r, bottom)
+        card.set(l, top, r, y - gap)
     }
 
     /** VIEW, MENU, RESET (but a drone's is with its buttons) and the D-pad switch share the
@@ -480,8 +545,8 @@ class DriveView(
                 cross(RectF(r - column, t, r, b), faceY, faceA, faceX, faceB)
             }
             drone -> {
-                stick.rect.set(l, t, l + column, b)
-                column(r - column, camera, flightMode, reset, arm)
+                leftStick.rect.set(l, t, l + column, b)
+                rightStick.rect.set(r - column, t, r, b)
             }
             else -> {
                 column(l, shiftDown, horn, lights, boost)
@@ -502,6 +567,7 @@ class DriveView(
         gasBar.set(cr - bar, areaTop, cr, areaBottom)
         if (menu != null || drone) card.set(cl, areaTop, cr, areaBottom)
         else card.set(cl + bar + gap * 1.5f, areaTop, cr - bar - gap * 1.5f, areaBottom)
+        if (drone && menu == null) droneButtons(cl, cr, areaTop, areaBottom, gap)
         middle.rect.set(card)
         dialX = (cl + cr) / 2
         dialY = (areaTop + areaBottom) / 2
@@ -526,11 +592,9 @@ class DriveView(
                     swipes.put(e.getPointerId(i), PointF(e.getX(i), e.getY(i)))
                     return true
                 }
-                if (pad === stick) {
-                    // Moves from where the thumb lands, so touching the pad never jumps the throttle.
-                    stickPointer = e.getPointerId(i)
-                    stickFrom.set(e.getX(i), e.getY(i))
-                    throttleFrom = throttle
+                if (pad.kind == Kind.STICK) {
+                    // A stick moves from where the thumb lands, so touching it never jumps the throttle.
+                    grips.put(e.getPointerId(i), Grip(pad, e.getX(i), e.getY(i), throttle))
                     return true
                 }
                 owners.put(e.getPointerId(i), pad)
@@ -540,22 +604,16 @@ class DriveView(
                 }
                 pad.action?.invoke()
             }
-            MotionEvent.ACTION_MOVE -> {
-                val i = if (stickPointer >= 0) e.findPointerIndex(stickPointer) else -1
-                if (i >= 0) {
-                    // Most of the pad's height is the throttle's whole travel; under half its width is full yaw.
-                    val travel = stick.rect.height() * STICK_TRAVEL
-                    setStick(throttleFrom - (e.getY(i) - stickFrom.y) / travel,
-                        (e.getX(i) - stickFrom.x) / (stick.rect.width() * STICK_YAW))
-                }
+            MotionEvent.ACTION_MOVE -> for (k in 0 until e.pointerCount) {
+                grips[e.getPointerId(k)]?.let { moveStick(it, e.getX(k), e.getY(k)) }
             }
             // A finger that slides off its button keeps holding it until it lifts.
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val i = e.actionIndex
                 val pointer = e.getPointerId(i)
-                if (pointer == stickPointer) {
-                    stickPointer = -1
-                    setStick(throttle, 0f)  // yaw springs back; the throttle stays
+                grips[pointer]?.let { grip ->
+                    grips.remove(pointer)
+                    letGo(grip)
                 }
                 swipes[pointer]?.let { from ->
                     swipes.remove(pointer)
@@ -567,8 +625,7 @@ class DriveView(
                 for (k in 0 until owners.size()) owners.valueAt(k).button?.let(controls::release)
                 owners.clear()
                 swipes.clear()
-                stickPointer = -1
-                setStick(throttle, 0f)
+                letGoAll()
             }
         }
         return true
@@ -593,7 +650,8 @@ class DriveView(
     }
 
     private fun hit(x: Float, y: Float): Pad? {
-        val pads = drawn + middle
+        // A drone's middle is only something to look at: there's no pose to set.
+        val pads = if (drone && menu == null) drawn else drawn + middle
         pads.firstOrNull { it.rect.contains(x, y) }?.let { return it }
         // Near misses at the edge of a button still count.
         val slop = 8 * dp
@@ -617,7 +675,7 @@ class DriveView(
         }
 
         when {
-            !motion.available -> drawCard(canvas, BRAKE, "No motion sensor", listOf(
+            !motion.available && !drone -> drawCard(canvas, BRAKE, "No motion sensor", listOf(
                 "This phone can't steer: it has no accelerometer or gyroscope.",
             ))
             !link.connected -> drawCard(canvas, WAIT, "Looking for your PC", listOf(
@@ -642,20 +700,16 @@ class DriveView(
                     else -> "Tap DRIVE to drive."
                 },
             ))
-            !centered && drone -> drawCard(canvas, Color.WHITE, "Set your neutral", listOf(
-                "Hold the phone the way you'll fly, then tap here.",
-                "Pitch stays level until you do; roll works already.",
-            ))
+            drone -> drawReadout(canvas)
             !centered -> drawCard(canvas, Color.WHITE, "Set your neutral", listOf(
                 "Hold the phone the way you'll drive, then tap here.",
                 "Gas and brake stay off until you do.",
             ))
-            drone -> drawGate(canvas)
             else -> drawDial(canvas)
         }
         drawPill(canvas)
         // Flat with the menu controls put away: nothing's being driven, and this says why.
-        if (menu == null && motion.parked && link.connected && centered) drawPaused(canvas)
+        if (menu == null && !drone && motion.parked && link.connected && centered) drawPaused(canvas)
     }
 
     /**
@@ -848,12 +902,14 @@ class DriveView(
     }
 
     /**
-     * Drone mode's thumb pad: the throttle as a bar filled to where it's set (it stays
-     * there), with the yaw beneath it springing either side of centre.
+     * One of drone mode's sticks, as a radio's gimbal: a square gate, the stick's dot in it,
+     * and for the throttle, the gate filled up to where it's set.
      */
     private fun drawStick(canvas: Canvas, pad: Pad) {
         val r = pad.rect
-        val held = stickPointer >= 0
+        val throttleStick = pad === leftStick
+        var held = false
+        for (k in 0 until grips.size()) if (grips.valueAt(k).stick === pad) held = true
         val radius = 20 * dp
         fill.color = SURFACE
         canvas.drawRoundRect(r, radius, radius, fill)
@@ -863,79 +919,63 @@ class DriveView(
         text.typeface = MEDIUM
         text.textSize = 11 * dp
         text.color = DIM
-        canvas.drawText("THROTTLE", r.centerX(), r.top + 26 * dp, text)
-        text.textSize = 22 * dp
-        text.color = if (throttle > 0f) Color.WHITE else LABEL
-        canvas.drawText("${(throttle * 100).roundToInt()}%", r.centerX(), r.top + 54 * dp, text)
+        canvas.drawText(if (throttleStick) "THROTTLE · YAW" else "PITCH · ROLL", r.centerX(), r.top + 24 * dp, text)
 
-        // The throttle: a wide bar up the middle, green to where it's set, a white line on top.
-        val bar = 26 * dp
-        val top = r.top + 72 * dp
-        val bottom = r.bottom - 64 * dp
-        val y = bottom - (bottom - top) * throttle
-        fill.color = TRACK
-        canvas.drawRoundRect(r.centerX() - bar / 2, top, r.centerX() + bar / 2, bottom, bar / 2, bar / 2, fill)
-        if (throttle > 0f) {
-            fill.color = GAS
-            canvas.drawRoundRect(r.centerX() - bar / 2, min(y, bottom - bar), r.centerX() + bar / 2, bottom, bar / 2, bar / 2, fill)
-        }
-        line.color = Color.WHITE
-        line.strokeWidth = 3 * dp
-        canvas.drawLine(r.centerX() - bar, y, r.centerX() + bar, y, line)
-
-        // The yaw: a track across the bottom, filled from centre the way it's pushed.
-        val yawY = r.bottom - 34 * dp
-        val half = r.width() / 2 - 24 * dp
-        line.color = TRACK
-        line.strokeWidth = 6 * dp
-        canvas.drawLine(r.centerX() - half, yawY, r.centerX() + half, yawY, line)
-        if (yaw != 0f) {
-            line.color = STEER
-            canvas.drawLine(r.centerX(), yawY, r.centerX() + half * yaw, yawY, line)
-        }
-        line.color = LABEL
-        line.strokeWidth = 1.5f * dp
-        canvas.drawLine(r.centerX(), yawY - 7 * dp, r.centerX(), yawY + 7 * dp, line)
-        text.textSize = 10 * dp
-        text.color = DIM
-        canvas.drawText("YAW", r.centerX(), r.bottom - 12 * dp, text)
-    }
-
-    /**
-     * Flying: where the phone's tilt puts the right stick, in a stick's square gate, with
-     * the roll and pitch it comes from. Tapping it makes this pose level.
-     */
-    private fun drawGate(canvas: Canvas) {
-        val half = dialR * 0.6f
-        val cx = dialX
-        val cy = dialY - 12 * dp
+        // The gate: as big as fits between the label and the throttle's number.
+        val size = min(r.width() - 32 * dp, r.height() - 84 * dp)
+        val cx = r.centerX()
+        val cy = r.top + 38 * dp + (r.height() - 72 * dp) / 2
+        val half = size / 2
         badgeBox.set(cx - half, cy - half, cx + half, cy + half)
+        fill.color = Color.BLACK
+        canvas.drawRoundRect(badgeBox, 16 * dp, 16 * dp, fill)
+        if (throttleStick && throttle > 0f) {
+            // The throttle, filled up from the bottom, since it stays where it's left.
+            canvas.save()
+            canvas.clipRect(cx - half, cy + half - size * throttle, cx + half, cy + half)
+            fill.color = Palette.SHADE
+            canvas.drawRoundRect(badgeBox, 16 * dp, 16 * dp, fill)
+            canvas.restore()
+        }
         stroke.color = EDGE
-        canvas.drawRoundRect(badgeBox, 18 * dp, 18 * dp, stroke)
+        canvas.drawRoundRect(badgeBox, 16 * dp, 16 * dp, stroke)
         line.color = TRACK
         line.strokeWidth = 1.5f * dp
         canvas.drawLine(cx - half, cy, cx + half, cy, line)
         canvas.drawLine(cx, cy - half, cx, cy + half, line)
-        if (motion.parked) return
-        // Up the screen is the stick pushed forward: nose down.
-        val x = cx + half * controls.rightX
-        val y = cy - half * controls.rightY
-        fill.color = Color.BLACK
-        canvas.drawCircle(x, y, 12 * dp, fill)
-        fill.color = Color.WHITE
-        canvas.drawCircle(x, y, 9 * dp, fill)
 
-        val roll = motion.steerAngle.roundToInt()
-        val pitch = motion.forwardAngle.roundToInt()
+        val x = if (throttleStick) yaw else roll
+        val y = if (throttleStick) throttle * 2 - 1 else pitch
+        val dotX = cx + half * x
+        val dotY = cy - half * y
+        fill.color = Color.BLACK
+        canvas.drawCircle(dotX, dotY, 14 * dp, fill)
+        fill.color = if (throttleStick && throttle > 0f) GAS else Color.WHITE
+        canvas.drawCircle(dotX, dotY, 11 * dp, fill)
+
+        if (throttleStick) {
+            text.textSize = 13 * dp
+            text.color = if (throttle > 0f) Color.WHITE else LABEL
+            canvas.drawText("${(throttle * 100).roundToInt()}%", cx, r.bottom - 16 * dp, text)
+        }
+    }
+
+    /** Flying, connected: what the sticks are sending, in the middle above the buttons. */
+    private fun drawReadout(canvas: Canvas) {
+        fun signed(v: Float) = (v * 100).roundToInt().let { if (it > 0) "+$it" else "$it" }
+        val cx = card.centerX()
+        val cy = card.centerY()
         text.typeface = MEDIUM
-        text.textSize = 12 * dp
-        text.color = LABEL
-        canvas.drawText("roll ${if (roll == 0) "0" else "${if (roll < 0) "L" else "R"} ${abs(roll)}"}°" +
-            "    pitch ${if (pitch > 0) "+" else ""}$pitch°", cx, cy + half + 24 * dp, text)
-        val justSet = SystemClock.uptimeMillis() - centeredAt < CENTRED_MS
+        text.textSize = 10 * dp
+        text.color = DIM
+        canvas.drawText("THROTTLE", cx, cy - 26 * dp, text)
+        text.textSize = 30 * dp
+        text.color = if (throttle > 0f) Color.WHITE else LABEL
+        canvas.drawText("${(throttle * 100).roundToInt()}%", cx, cy + 8 * dp, text)
         text.textSize = 11 * dp
-        text.color = if (justSet) GAS else DIM
-        canvas.drawText(if (justSet) "✓ level set" else "tap to make this level", cx, cy + half + 44 * dp, text)
+        text.color = DIM
+        canvas.drawText("yaw ${signed(controls.steer)}   pitch ${signed(controls.rightY)}   roll ${signed(controls.rightX)}",
+            cx, cy + 32 * dp, text)
     }
 
     private fun drawDial(canvas: Canvas) {
@@ -1084,8 +1124,5 @@ class DriveView(
         private const val SETTLE_MS = 400L
         /** Shorter than this on the middle is a tap, longer a swipe, in dp. */
         private const val SWIPE_DP = 28f
-        /** The thumb pad: the share of its height that's all the throttle, and of its width that's full yaw either way. */
-        private const val STICK_TRAVEL = 0.8f
-        private const val STICK_YAW = 0.35f
     }
 }

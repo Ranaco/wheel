@@ -47,7 +47,6 @@ class Motion(
             field = value
             loadNeutral()
             primed = false
-            roll = 0f
         }
 
     /** Angles as last read, relative to neutral, for the dial. */
@@ -67,8 +66,6 @@ class Motion(
     private var smoothY = 0f
     private var smoothZ = 0f
     private var primed = false
-    /** A drone's roll, kept continuous: past 180° it carries on (200°) rather than wrapping to -160°. */
-    private var roll = 0f
 
     // A snapshot of the settings, so the sensor thread doesn't read preferences 400 times a
     // second; taken again by reload(). Until the first centre, nobody has said what "no
@@ -81,10 +78,6 @@ class Motion(
     private var brakeAt = 0f
     private var pedalDeadzone = 0f
     private var swap = false
-    private var drone = false
-    private var droneTilt = 0f
-    private var droneDeadzone = 0f
-    private var droneExpo = 0f
     private var neutralPitch = 0f
     private var neutralSteer = 0f
     private var centered = false
@@ -94,7 +87,9 @@ class Motion(
     fun start() {
         reload()
         primed = false
-        roll = 0f
+        parked = false
+        // A drone flies by its two touch sticks: nothing here is needed, so the sensor stays off.
+        if (settings.droneMode) return
         sensor?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
     }
 
@@ -112,15 +107,11 @@ class Motion(
         brakeAt = settings.brakeAt
         pedalDeadzone = settings.pedalDeadzone
         swap = settings.swapPedals
-        drone = settings.droneMode
-        droneTilt = settings.droneTilt
-        droneDeadzone = settings.droneDeadzone
-        droneExpo = settings.droneExpo
         loadNeutral()
     }
 
     private fun loadNeutral() {
-        val neutral = settings.neutral(flex, drone)
+        val neutral = settings.neutral(flex)
         neutralPitch = neutral.pitch
         neutralSteer = neutral.steer
         centered = neutral.set
@@ -135,8 +126,7 @@ class Motion(
     fun recenter() {
         neutralPitch = rawPitch
         neutralSteer = rawSteer
-        roll = 0f
-        settings.setNeutral(flex, drone, rawPitch, rawSteer)
+        settings.setNeutral(flex, rawPitch, rawSteer)
         centered = true
     }
 
@@ -194,28 +184,19 @@ class Motion(
             flat = abs(rawPitch) > FLAT
         }
 
-        val steer = if (drone) unwrapRoll(wrap(rawSteer - neutralSteer)) else wrap(rawSteer - neutralSteer)
+        val steer = wrap(rawSteer - neutralSteer)
         val tilt = rawPitch - neutralPitch
-        val forward = if (swap && !drone) -tilt else tilt
+        val forward = if (swap) -tilt else tilt
         steerAngle = steer
         forwardAngle = forward
 
-        // Upside down is a phone that's been put down, unless it's flying: a drone can roll right over.
-        parked = flat || (!drone && abs(steer) > UPSIDE_DOWN)
+        parked = flat || abs(steer) > UPSIDE_DOWN
         if (parked || controls.menu) {
             controls.neutral()
             haptics.reset()
             return
         }
 
-        if (drone) {
-            // Flying: roll and pitch on the right stick, as on a drone radio (Mode 2); the
-            // thumb pad does throttle and yaw. Tipping the top away pushes the stick forward.
-            controls.rightX = shape(steer, droneDeadzone, droneTilt, droneExpo)
-            controls.rightY = if (centered) shape(forward, droneDeadzone, droneTilt, droneExpo) else 0f
-            haptics.reset()
-            return
-        }
         controls.steer = shape(steer, steerDeadzone, lock, curve)
         if (!centered) {
             controls.throttle = 0f
@@ -225,15 +206,6 @@ class Motion(
             controls.brake = pedal(-forward, pedalDeadzone, brakeAt)
         }
         haptics.update(controls.steer, controls.throttle, controls.brake)
-    }
-
-    /** The roll nearest the last one, so a roll past 180° keeps the stick where it was going. */
-    private fun unwrapRoll(wrapped: Float): Float {
-        var next = wrapped
-        while (next - roll > 180f) next -= 360f
-        while (next - roll < -180f) next += 360f
-        roll = next
-        return next
     }
 
     override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) = Unit

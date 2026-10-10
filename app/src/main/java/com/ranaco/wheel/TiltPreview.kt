@@ -25,8 +25,6 @@ import kotlin.math.roundToInt
  *   |-------------[ ]=====o----------------|     ±full lock, deadzone at centre
  *   Pedals                            Gas 40%
  *   |brake======[  dz  ]=====o-------- gas|     full brake ... full gas
- *
- * Flying a drone, the two rows are Roll and Pitch instead, each ± full stick.
  */
 @SuppressLint("ViewConstructor")
 class TiltPreview(
@@ -47,9 +45,6 @@ class TiltPreview(
     private var pedalDeadzone = 0f
     private var gasAt = 0f
     private var brakeAt = 0f
-    private var drone = false
-    private var droneTilt = 0f
-    private var droneDeadzone = 0f
 
     private val shown = IntArray(6)
     private val now = IntArray(6)
@@ -60,7 +55,7 @@ class TiltPreview(
             now[2] = (controls.throttle * 100).roundToInt()
             now[3] = (controls.brake * 100).roundToInt()
             now[4] = if (motion.parked) 1 else 0
-            now[5] = (controls.steer * 200 + controls.rightX * 2000 + controls.rightY * 20000).roundToInt()
+            now[5] = (controls.steer * 200).roundToInt()
             if (!now.contentEquals(shown)) {
                 now.copyInto(shown)
                 invalidate()
@@ -79,9 +74,6 @@ class TiltPreview(
         pedalDeadzone = settings.pedalDeadzone
         gasAt = settings.gasAt
         brakeAt = settings.brakeAt
-        drone = settings.droneMode
-        droneTilt = settings.droneTilt
-        droneDeadzone = settings.droneDeadzone
         invalidate()
     }
 
@@ -100,7 +92,6 @@ class TiltPreview(
     }
 
     override fun onDraw(canvas: Canvas) {
-        if (drone) return drawDrone(canvas)
         val parked = motion.parked
         val steer = motion.steerAngle
         val deg = steer.roundToInt()
@@ -154,37 +145,6 @@ class TiltPreview(
         canvas.drawText("FULL BRAKE", track.left, track.bottom + 16 * dp, text)
         text.textAlign = Paint.Align.RIGHT
         canvas.drawText("FULL GAS", track.right, track.bottom + 16 * dp, text)
-    }
-
-    /** Roll and pitch, each on a scale of full stick either way, filled with what the game gets. */
-    private fun drawDrone(canvas: Canvas) {
-        val parked = motion.parked
-        fun angle(degrees: Float, minus: String, plus: String): String {
-            val d = degrees.roundToInt()
-            return when {
-                parked -> "phone is flat"
-                d == 0 -> "0°"
-                else -> "${if (d < 0) minus else plus} ${abs(d)}°"
-            }
-        }
-        stickRow(canvas, 0f, "Roll", angle(motion.steerAngle, "L", "R"), motion.steerAngle, controls.rightX)
-        stickRow(canvas, 58 * dp, "Pitch", angle(motion.forwardAngle, "back", "forward"), motion.forwardAngle, controls.rightY)
-    }
-
-    private fun stickRow(canvas: Canvas, top: Float, label: String, value: String, degrees: Float, stick: Float) {
-        row(canvas, top, label, value)
-        scale(canvas, top + 34 * dp)
-        val mid = track.centerX()
-        val half = track.width() / 2
-        fun sx(d: Float) = mid + half * (d / droneTilt).coerceIn(-1.08f, 1.08f)
-        deadzone(canvas, sx(-droneDeadzone), sx(droneDeadzone))
-        if (!motion.parked && stick != 0f) {
-            fill.color = Color.WHITE
-            val to = mid + half * stick
-            canvas.drawRoundRect(minOf(mid, to), track.top, maxOf(mid, to), track.bottom, track.height() / 2, track.height() / 2, fill)
-        }
-        tickAt(canvas, mid)
-        if (!motion.parked) marker(canvas, sx(degrees))
     }
 
     private fun row(canvas: Canvas, top: Float, label: String, value: String) {

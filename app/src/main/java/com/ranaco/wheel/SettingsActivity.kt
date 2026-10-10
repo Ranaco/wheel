@@ -126,25 +126,12 @@ class SettingsActivity : Activity() {
         content.removeAllViews()
         content.addView(header())
 
-        val live = section("Live")
         preview = TiltPreview(this, motion, controls, settings)
-        live.addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = px(14); bottomMargin = px(6)
-        })
-        divider(live)
-        val neutral = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(12), 0, px(14)) }
-        neutralLine = label("", 13f, LABEL)
-        neutral.addView(neutralLine, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        neutral.addView(pill("Set neutral here") {
-            motion.recenter()
-            showNeutral()
-            preview.refresh()
-        })
-        live.addView(neutral)
-        showNeutral()
+        // The live view is the phone's tilt, which a drone's sticks don't use.
+        if (!settings.droneMode) live()
 
         val mode = section("Controller")
-        toggle(mode, "Fly a drone", "For drone games like Liftoff: tilt to pitch and roll, and a thumb pad for throttle and yaw.",
+        toggle(mode, "Fly a drone", "For drone games like Liftoff: two sticks, like a drone's radio. Throttle and yaw on the left, pitch and roll on the right.",
             settings.droneMode, last = true) {
             settings.droneMode = it
             // The rest of the page is about one or the other.
@@ -152,15 +139,11 @@ class SettingsActivity : Activity() {
         }
 
         if (settings.droneMode) {
-            val drone = section("Drone")
-            slider(drone, "Sensitivity", "How far you tilt the phone, each way, for full stick. Lower is more sensitive.",
-                10, 60, 1, settings.droneTilt, { "full stick at $it°" }) { settings.droneTilt = it }
-            slider(drone, "Centre deadzone", "Small wobbles near level are ignored.",
-                0, 10, 1, settings.droneDeadzone, { "$it°" }) { settings.droneDeadzone = it }
-            slider(drone, "Expo", "1.0 is linear. Higher makes small tilts gentler, for fine control.",
-                10, 30, 1, settings.droneExpo * 10, { "%.1f".format(it / 10f) }) { settings.droneExpo = it / 10f }
-            slider(drone, "Smoothing", "Steadier, at the cost of a little lag.",
-                0, 80, 5, settings.smoothing * 100, { "$it%" }, last = true) { settings.smoothing = it / 100f }
+            val drone = section("Sticks")
+            slider(drone, "Stick size", "How far your thumb moves from where it lands for full stick. The throttle's whole travel is twice this.",
+                30, 120, 5, settings.droneStick, { "$it dp" }) { settings.droneStick = it }
+            slider(drone, "Expo", "1.0 is linear. Higher makes small moves gentler, for fine control. The throttle stays linear.",
+                10, 30, 1, settings.droneExpo * 10, { "%.1f".format(it / 10f) }, last = true) { settings.droneExpo = it / 10f }
         } else {
             driving()
         }
@@ -240,10 +223,29 @@ class SettingsActivity : Activity() {
         })
     }
 
+    /** The phone as it's held now, on the scales below, and the pose that counts as neutral. */
+    private fun live() {
+        val live = section("Live")
+        live.addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = px(14); bottomMargin = px(6)
+        })
+        divider(live)
+        val neutral = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, px(12), 0, px(14)) }
+        neutralLine = label("", 13f, LABEL)
+        neutral.addView(neutralLine, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        neutral.addView(pill("Set neutral here") {
+            motion.recenter()
+            showNeutral()
+            preview.refresh()
+        })
+        live.addView(neutral)
+        showNeutral()
+    }
+
     private fun showNeutral() {
-        val neutral = settings.neutral(flex = false, drone = settings.droneMode)
-        neutralLine.text = if (neutral.set) "${if (settings.droneMode) "Level" else "Neutral"} is ${neutral.pitch.roundToInt()}° leaned back."
-        else "Not set. Hold the phone how you'll ${if (settings.droneMode) "fly" else "drive"}."
+        val neutral = settings.neutral(flex = false)
+        neutralLine.text = if (neutral.set) "Neutral is ${neutral.pitch.roundToInt()}° leaned back."
+        else "Not set. Hold the phone how you'll drive."
     }
 
     private fun header() = LinearLayout(this).apply {

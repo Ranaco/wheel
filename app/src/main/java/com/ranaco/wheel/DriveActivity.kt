@@ -127,6 +127,7 @@ class DriveActivity : Activity() {
         displays.registerDisplayListener(displayListener, null)
         updateRotation()
         view.refresh()
+        view.resetSticks()
         motion.start()
         link.start(settings.pcAddress)
         wifiLock.acquire()
